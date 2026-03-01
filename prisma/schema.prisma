@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CITIZEN
+  GOVERNMENT
+  ADMIN
+}
+
+enum IssueStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String
+  role          UserRole  @default(CITIZEN)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  issues        Issue[]
+  statusChanges IssueStatusHistory[]
+}
+
+model Issue {
+  id            String               @id @default(uuid())
+  protocol      String               @unique
+  category      String
+  description   String
+  latitude      Float
+  longitude     Float
+  address       String?
+  imageUrl      String?
+  status        IssueStatus          @default(PENDING)
+  userId        String?
+  user          User?                @relation(fields: [userId], references: [id])
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  history       IssueStatusHistory[]
+}
+
+model IssueStatusHistory {
+  id          String      @id @default(uuid())
+  issueId     String
+  issue       Issue       @relation(fields: [issueId], references: [id])
+  status      IssueStatus
+  comment     String?
+  changedById String
+  changedBy   User        @relation(fields: [changedById], references: [id])
+  createdAt   DateTime    @default(now())
+}

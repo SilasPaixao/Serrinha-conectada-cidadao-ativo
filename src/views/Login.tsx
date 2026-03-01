@@ -1,0 +1,173 @@
+import { useState } from 'react';
+import { Typography, Box, TextField, Button, Paper, Container, Alert, CircularProgress, InputAdornment, IconButton } from '@mui/material';
+import { Link, useNavigate } from 'react-router-dom';
+import { Email, Lock, Visibility, VisibilityOff, ArrowBack } from '@mui/icons-material';
+import axios from 'axios';
+
+export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post('/api/auth/login', { email, password });
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      onLogin(response.data.user);
+      navigate('/');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'E-mail ou senha incorretos.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box 
+      sx={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(rgba(248, 250, 252, 0.9), rgba(248, 250, 252, 0.9)), url("https://i.postimg.cc/SRHyxrRv/Serrinha-Image.png")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        py: 8
+      }}
+    >
+      <Container maxWidth="xs" sx={{ px: { xs: 2, sm: 3 } }}>
+        <Button 
+          component={Link} 
+          to="/" 
+          startIcon={<ArrowBack />} 
+          sx={{ mb: { xs: 2, sm: 4 }, textTransform: 'none', fontWeight: 600, color: 'text.secondary' }}
+        >
+          Voltar para o Início
+        </Button>
+        
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            p: { xs: 3, sm: 5 }, 
+            borderRadius: { xs: 5, sm: 6 }, 
+            border: '1px solid rgba(0,0,0,0.05)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.05)',
+            bgcolor: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+            width: '100%'
+          }}
+        >
+        <Box sx={{ mb: 4, textAlign: 'center' }}>
+          <Box 
+            sx={{ 
+              width: 60, 
+              height: 60, 
+              bgcolor: 'primary.main', 
+              borderRadius: 3, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              mx: 'auto',
+              mb: 2,
+              boxShadow: '0 8px 16px rgba(0,74,141,0.2)'
+            }}
+          >
+            <Typography variant="h4" sx={{ color: 'white', fontWeight: 900 }}>S</Typography>
+          </Box>
+          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-1px' }}>Entrar</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Acesse o painel do Serrinha Conectada
+          </Typography>
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 3, fontWeight: 500 }}>
+            {error}
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <TextField
+            fullWidth
+            label="E-mail"
+            margin="normal"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Email color="action" fontSize="small" />
+                </InputAdornment>
+              ),
+              sx: { borderRadius: 3 }
+            }}
+          />
+          <TextField
+            fullWidth
+            label="Senha"
+            type={showPassword ? 'text' : 'password'}
+            margin="normal"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Lock color="action" fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+              sx: { borderRadius: 3 }
+            }}
+          />
+          
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            type="submit"
+            disabled={loading}
+            sx={{ 
+              mt: 4, 
+              py: 1.5, 
+              borderRadius: 3, 
+              fontWeight: 800, 
+              fontSize: '1rem',
+              textTransform: 'none',
+              boxShadow: '0 8px 20px rgba(0,74,141,0.2)'
+            }}
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : 'Entrar na Conta'}
+          </Button>
+        </form>
+
+        <Box sx={{ mt: 4, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            Acesso administrativo?{' '}
+            <Link to="/register" style={{ color: '#004a8d', fontWeight: 700, textDecoration: 'none' }}>
+              Cadastre-se aqui
+            </Link>
+          </Typography>
+        </Box>
+      </Paper>
+    </Container>
+  </Box>
+);
+}
