@@ -1,5 +1,5 @@
 {
   "name": "Serrinha Conectada",
-  "description": "Plataforma de gestão de zeladoria urbana e participação cidadã.",
+  "description": "Plataforma de gestão de zeladoria urbana e participação cidadã com notificações por e-mail.",
   "requestFramePermissions": ["geolocation", "camera"]
 }

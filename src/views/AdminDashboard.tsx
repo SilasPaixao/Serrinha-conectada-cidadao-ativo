@@ -114,8 +114,11 @@ export default function AdminDashboard() {
   const [openDialog, setOpenDialog] = useState(false);
   const [openImageModal, setOpenImageModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [openStatusConfirmDialog, setOpenStatusConfirmDialog] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [comment, setComment] = useState('');
+  const [manualMessage, setManualMessage] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [viewTab, setViewTab] = useState(0);
   
   // Filters
@@ -155,11 +158,31 @@ export default function AdminDashboard() {
         { status: newStatus, comment },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      setOpenStatusConfirmDialog(false);
       setOpenDialog(false);
       setComment('');
       fetchIssues();
     } catch (err) {
       console.error('Erro ao atualizar status', err);
+    }
+  };
+
+  const handleSendManualEmail = async () => {
+    if (!manualMessage.trim()) return;
+    setSendingEmail(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`/api/admin/issues/${selectedIssue.id}/send-email`, 
+        { message: manualMessage },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setManualMessage('');
+      alert('E-mail enviado com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao enviar e-mail', err);
+      alert(err.response?.data?.error || 'Erro ao enviar e-mail');
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -892,13 +915,45 @@ export default function AdminDashboard() {
               placeholder="Descreva o andamento ou motivo da resolução..."
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
             />
+
+            <Divider sx={{ my: 1 }} />
+            
+            <Box sx={{ p: 2, bgcolor: 'rgba(16,185,129,0.03)', borderRadius: 3, border: '1px solid rgba(16,185,129,0.1)' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'success.main', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Download sx={{ fontSize: 20 }} /> Enviar Mensagem Direta (E-mail)
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Use este campo para enviar uma mensagem personalizada ao cidadão. O e-mail cadastrado é: <strong>{selectedIssue?.reporterEmail || 'Não fornecido'}</strong>
+              </Typography>
+              <TextField
+                fullWidth
+                label="Mensagem Personalizada"
+                multiline
+                rows={3}
+                value={manualMessage}
+                onChange={(e) => setManualMessage(e.target.value)}
+                placeholder="Escreva aqui sua mensagem direta..."
+                disabled={!selectedIssue?.reporterEmail}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: 'white' }, mb: 2 }}
+              />
+              <Button 
+                variant="outlined" 
+                color="success" 
+                fullWidth
+                onClick={handleSendManualEmail}
+                disabled={sendingEmail || !manualMessage.trim() || !selectedIssue?.reporterEmail}
+                sx={{ borderRadius: 3, fontWeight: 700, textTransform: 'none' }}
+              >
+                {sendingEmail ? <CircularProgress size={20} /> : 'Enviar E-mail Agora'}
+              </Button>
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 4 }}>
           <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 800, color: 'text.secondary' }}>Fechar</Button>
           <Button 
             variant="contained" 
-            onClick={handleUpdateStatus}
+            onClick={() => setOpenStatusConfirmDialog(true)}
             sx={{ borderRadius: 3, px: 4, py: 1.2, fontWeight: 800, boxShadow: '0 8px 20px rgba(0,74,141,0.2)' }}
           >
             Salvar Alteração
@@ -930,6 +985,37 @@ export default function AdminDashboard() {
             }}
           />
         </Box>
+      </Dialog>
+
+      {/* Status Update Confirmation */}
+      <Dialog 
+        open={openStatusConfirmDialog} 
+        onClose={() => setOpenStatusConfirmDialog(false)}
+        PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: 'primary.main' }}>Confirmar Alteração de Status</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontWeight: 500 }}>
+            Você está prestes a alterar o status do relato <strong>{selectedIssue?.protocol}</strong> para <strong>{statusMap[newStatus]?.label}</strong>.
+            {comment && (
+              <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2, border: '1px solid rgba(0,0,0,0.05)' }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>COMENTÁRIO:</Typography>
+                <Typography variant="body2">"{comment}"</Typography>
+              </Box>
+            )}
+            <Typography sx={{ mt: 2 }}>Deseja prosseguir com esta alteração?</Typography>
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenStatusConfirmDialog(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleUpdateStatus}
+            sx={{ borderRadius: 2, fontWeight: 800 }}
+          >
+            Confirmar Alteração
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation */}

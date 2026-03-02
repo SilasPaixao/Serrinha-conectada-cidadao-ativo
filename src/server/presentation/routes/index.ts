@@ -108,6 +108,16 @@ export function setupRoutes(app: Express) {
     }
   });
 
+  app.post("/api/admin/issues/:id/send-email", authenticate, authorize(["GOVERNMENT", "ADMIN"]), async (req: AuthRequest, res) => {
+    try {
+      const { message } = req.body;
+      const result = await issueService.sendManualEmail(req.params.id, message);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.delete("/api/admin/issues/:id", authenticate, authorize(["ADMIN"]), async (req, res) => {
     try {
       await issueService.deleteIssue(req.params.id);

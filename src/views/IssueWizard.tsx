@@ -81,6 +81,7 @@ export default function IssueWizard() {
     street: '',
     neighborhood: '',
     referencePoint: '',
+    reporterEmail: '',
     useMapLocation: true
   });
   const [image, setImage] = useState<File | null>(null);
@@ -166,7 +167,8 @@ export default function IssueWizard() {
         description: formData.description,
         latitude: position.lat,
         longitude: position.lng,
-        address: fullAddress || formData.address
+        address: fullAddress || formData.address,
+        reporterEmail: formData.reporterEmail || undefined
       }));
       if (image) data.append('image', image);
 
@@ -180,7 +182,7 @@ export default function IssueWizard() {
     }
   };
 
-  const steps = ['Categoria', 'Detalhes', 'Localização', 'Foto'];
+  const steps = ['Categoria', 'Detalhes', 'Localização', 'Foto', 'Contato'];
 
   const renderStepContent = (step: number) => {
     switch (step) {
@@ -372,6 +374,27 @@ export default function IssueWizard() {
         );
       case 4:
         return (
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Deseja receber atualizações por e-mail?</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Informe seu e-mail para receber o número do protocolo e ser avisado quando houver mudanças no status do seu relato.
+            </Typography>
+            <TextField
+              label="Seu E-mail (opcional)"
+              type="email"
+              fullWidth
+              placeholder="exemplo@email.com"
+              value={formData.reporterEmail}
+              onChange={(e) => setFormData({ ...formData, reporterEmail: e.target.value })}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+            />
+            <Alert severity="info" sx={{ mt: 3, borderRadius: 3 }}>
+              O e-mail é opcional, mas recomendado para que você não perca o número do protocolo.
+            </Alert>
+          </Box>
+        );
+      case 5:
+        return (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Box sx={{ width: 80, height: 80, bgcolor: 'success.light', color: 'success.main', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 3 }}>
               <CheckCircle sx={{ fontSize: 48 }} />
@@ -407,14 +430,14 @@ export default function IssueWizard() {
   return (
     <Container maxWidth="sm">
       <Box sx={{ mt: 4, mb: 8 }}>
-        {activeStep < 4 && (
+        {activeStep < 5 && (
           <Box sx={{ mb: 4 }}>
             <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>Relatar Problema</Typography>
             <Typography variant="body1" color="text.secondary">Siga os passos para nos informar sobre a zeladoria.</Typography>
           </Box>
         )}
 
-        {activeStep < 4 && (
+        {activeStep < 5 && (
           <Stepper 
             activeStep={activeStep} 
             orientation={isMobile ? 'vertical' : 'horizontal'}
@@ -437,7 +460,7 @@ export default function IssueWizard() {
             {renderStepContent(activeStep)}
           </Box>
 
-          {activeStep < 4 && (
+          {activeStep < 5 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 6 }}>
               {activeStep === steps.length - 1 && (!formData.category || !formData.description.trim() || !formData.street || !formData.neighborhood) && (
                 <Alert severity="warning" sx={{ borderRadius: 3 }}>

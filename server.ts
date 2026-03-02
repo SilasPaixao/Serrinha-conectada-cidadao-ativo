@@ -33,6 +33,12 @@ async function startServer() {
     console.log("✅ DATABASE_URL is present.");
   }
 
+  if (!process.env.SMTP_USER) {
+    console.warn("⚠️ SMTP_USER is missing! Email features may not work.");
+  } else {
+    console.log("✅ SMTP_USER is present.");
+  }
+
   // API Routes
   const { setupRoutes } = await import("./src/server/presentation/routes/index.js");
   setupRoutes(app);
