@@ -995,16 +995,16 @@ export default function AdminDashboard() {
       >
         <DialogTitle sx={{ fontWeight: 900, color: 'primary.main' }}>Confirmar Alteração de Status</DialogTitle>
         <DialogContent>
-          <Typography sx={{ fontWeight: 500 }}>
+          <Typography sx={{ fontWeight: 500, mb: 2 }}>
             Você está prestes a alterar o status do relato <strong>{selectedIssue?.protocol}</strong> para <strong>{statusMap[newStatus]?.label}</strong>.
-            {comment && (
-              <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2, border: '1px solid rgba(0,0,0,0.05)' }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>COMENTÁRIO:</Typography>
-                <Typography variant="body2">"{comment}"</Typography>
-              </Box>
-            )}
-            <Typography sx={{ mt: 2 }}>Deseja prosseguir com esta alteração?</Typography>
           </Typography>
+          {comment && (
+            <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2, border: '1px solid rgba(0,0,0,0.05)' }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', display: 'block' }}>COMENTÁRIO:</Typography>
+              <Typography variant="body2">"{comment}"</Typography>
+            </Box>
+          )}
+          <Typography sx={{ mt: 2, fontWeight: 500 }}>Deseja prosseguir com esta alteração?</Typography>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
           <Button onClick={() => setOpenStatusConfirmDialog(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>

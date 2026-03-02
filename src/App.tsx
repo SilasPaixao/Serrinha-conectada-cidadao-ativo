@@ -83,12 +83,14 @@ export default function App() {
   const drawer = (
     <Box sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{ width: 28, height: 28, bgcolor: 'primary.main', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ width: 28, height: 28, bgcolor: 'primary.main', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14, fontWeight: 800 }}>
             S
           </Box>
-          Serrinha
-        </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main' }}>
+            Serrinha
+          </Typography>
+        </Box>
         <IconButton onClick={handleDrawerToggle}>
           <Close />
         </IconButton>
@@ -163,8 +165,7 @@ export default function App() {
       >
         <Container maxWidth="lg">
           <Toolbar disableGutters>
-            <Typography 
-              variant="h6" 
+            <Box 
               component={Link} 
               to="/" 
               sx={{ 
@@ -172,11 +173,9 @@ export default function App() {
                 textDecoration: 'none', 
                 color: 'primary.main', 
                 fontWeight: 800,
-                letterSpacing: '-0.5px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1,
-                fontSize: { xs: '1.1rem', sm: '1.25rem' }
               }}
             >
               <Box sx={{ width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 }, borderRadius: 1.5, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -187,9 +186,31 @@ export default function App() {
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                 />
               </Box>
-              <Box component="span" sx={{ display: { xs: 'none', sm: 'block' } }}>Serrinha Conectada</Box>
-              <Box component="span" sx={{ display: { xs: 'block', sm: 'none' } }}>Serrinha</Box>
-            </Typography>
+              <Typography 
+                variant="h6" 
+                component="span"
+                sx={{ 
+                  fontWeight: 800,
+                  letterSpacing: '-0.5px',
+                  fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                  display: { xs: 'none', sm: 'block' }
+                }}
+              >
+                Serrinha Conectada
+              </Typography>
+              <Typography 
+                variant="h6" 
+                component="span"
+                sx={{ 
+                  fontWeight: 800,
+                  letterSpacing: '-0.5px',
+                  fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                  display: { xs: 'block', sm: 'none' }
+                }}
+              >
+                Serrinha
+              </Typography>
+            </Box>
             
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1 }}>

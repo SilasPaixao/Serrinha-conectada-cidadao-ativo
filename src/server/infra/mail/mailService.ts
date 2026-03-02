@@ -27,9 +27,10 @@ export class MailService {
   }
 
   async sendMail(to: string, subject: string, html: string) {
-    const from = process.env.SMTP_FROM || '"Serrinha Conectada" <no-reply@serrinha.com>';
+    const from = process.env.SMTP_FROM || 'silaspaixao873@gmail.com';
     
     console.log(`Attempting to send email to ${to} with subject: ${subject}`);
+    console.log(`Using from address: ${from}`);
     
     try {
       const info = await this.transporter.sendMail({

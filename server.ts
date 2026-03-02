@@ -36,7 +36,8 @@ async function startServer() {
   if (!process.env.SMTP_USER) {
     console.warn("⚠️ SMTP_USER is missing! Email features may not work.");
   } else {
-    console.log("✅ SMTP_USER is present.");
+    console.log(`✅ SMTP_USER is present: ${process.env.SMTP_USER}`);
+    console.log(`✅ SMTP_HOST: ${process.env.SMTP_HOST}`);
   }
 
   // API Routes
