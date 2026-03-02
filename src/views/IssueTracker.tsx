@@ -8,9 +8,11 @@ import {
   Divider, 
   Chip,
   CircularProgress,
-  Alert
+  Alert,
+  Dialog,
+  IconButton
 } from '@mui/material';
-import { Search, History, Assignment, Image as ImageIcon } from '@mui/icons-material';
+import { Search, History, Assignment, Image as ImageIcon, Close, Visibility } from '@mui/icons-material';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -27,6 +29,7 @@ export default function IssueTracker() {
   const [issue, setIssue] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openImageModal, setOpenImageModal] = useState(false);
 
   const handleSearch = async () => {
     if (!protocol) return;
@@ -137,20 +140,82 @@ export default function IssueTracker() {
                   <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary' }}>Foto Anexada</Typography>
                 </Box>
                 <Box 
-                  component="img"
-                  src={issue.imageUrl} 
-                  alt="Relato" 
                   sx={{ 
-                    maxWidth: '100%', 
-                    borderRadius: 4, 
-                    maxHeight: 500,
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                    display: 'block'
-                  }} 
-                />
+                    position: 'relative',
+                    cursor: 'pointer',
+                    '&:hover .overlay': { opacity: 1 }
+                  }}
+                  onClick={() => setOpenImageModal(true)}
+                >
+                  <Box 
+                    component="img"
+                    src={issue.imageUrl} 
+                    alt="Relato" 
+                    sx={{ 
+                      maxWidth: '100%', 
+                      borderRadius: 4, 
+                      maxHeight: 500,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                      display: 'block',
+                      transition: 'transform 0.2s ease',
+                      '&:hover': { transform: 'scale(1.01)' }
+                    }} 
+                    onError={(e: any) => {
+                      e.target.src = 'https://placehold.co/600x400?text=Imagem+não+encontrada';
+                    }}
+                  />
+                  <Box 
+                    className="overlay"
+                    sx={{ 
+                      position: 'absolute', 
+                      top: 0, 
+                      left: 0, 
+                      right: 0, 
+                      bottom: 0, 
+                      bgcolor: 'rgba(0,0,0,0.3)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      opacity: 0,
+                      transition: 'opacity 0.2s ease',
+                      borderRadius: 4
+                    }}
+                  >
+                    <Box sx={{ bgcolor: 'white', px: 2, py: 1, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Visibility fontSize="small" />
+                      <Typography variant="button" sx={{ fontWeight: 700 }}>Ampliar Foto</Typography>
+                    </Box>
+                  </Box>
+                </Box>
               </Box>
             )}
           </Paper>
+
+          {/* Image Lightbox */}
+          <Dialog 
+            open={openImageModal} 
+            onClose={() => setOpenImageModal(false)} 
+            maxWidth="lg"
+            PaperProps={{ sx: { bgcolor: 'transparent', boxShadow: 'none', overflow: 'hidden' } }}
+          >
+            <Box sx={{ position: 'relative' }}>
+              <IconButton 
+                onClick={() => setOpenImageModal(false)}
+                sx={{ position: 'absolute', top: 10, right: 10, bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: 'white' }, zIndex: 10 }}
+              >
+                <Close />
+              </IconButton>
+              <img 
+                src={issue.imageUrl} 
+                alt="Evidência Full" 
+                style={{ maxWidth: '100%', maxHeight: '90vh', display: 'block', borderRadius: 16 }} 
+                referrerPolicy="no-referrer"
+                onError={(e: any) => {
+                  e.target.src = 'https://placehold.co/800x600?text=Erro+ao+carregar+imagem';
+                }}
+              />
+            </Box>
+          </Dialog>
 
           {/* Timeline Card */}
           <Paper 

@@ -7,7 +7,6 @@ import {
   StepLabel, 
   Button, 
   TextField, 
-  MenuItem, 
   Paper,
   CircularProgress,
   Alert,
@@ -223,6 +222,9 @@ export default function IssueWizard() {
               multiline
               rows={6}
               fullWidth
+              required
+              error={formData.description.trim() === ''}
+              helperText={formData.description.trim() === '' ? 'Campo obrigatório' : ''}
               placeholder="Ex: Lâmpada do poste em frente à casa 123 está queimada há 3 dias..."
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -269,6 +271,8 @@ export default function IssueWizard() {
                 <TextField
                   label="Rua"
                   fullWidth
+                  required
+                  error={!formData.street}
                   value={formData.street}
                   onChange={(e) => setFormData({ ...formData, street: e.target.value })}
                   disabled={formData.useMapLocation && geocoding}
@@ -282,9 +286,14 @@ export default function IssueWizard() {
                 <TextField
                   label="Bairro"
                   fullWidth
+                  required
+                  error={!formData.neighborhood}
                   value={formData.neighborhood}
                   onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
                   disabled={formData.useMapLocation && geocoding}
+                  InputProps={{
+                    endAdornment: formData.useMapLocation && geocoding ? <CircularProgress size={16} /> : null
+                  }}
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
                 />
               </Grid>
@@ -429,36 +438,47 @@ export default function IssueWizard() {
           </Box>
 
           {activeStep < 4 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 6 }}>
-              <Button 
-                disabled={activeStep === 0} 
-                onClick={handleBack}
-                startIcon={<ArrowBack />}
-                sx={{ fontWeight: 700 }}
-              >
-                Voltar
-              </Button>
-              
-              {activeStep === steps.length - 1 ? (
-                <Button 
-                  variant="contained" 
-                  onClick={handleSubmit} 
-                  disabled={loading || !formData.category || !formData.description}
-                  sx={{ borderRadius: 3, px: 4, fontWeight: 700 }}
-                >
-                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Finalizar Relato'}
-                </Button>
-              ) : (
-                <Button 
-                  variant="contained" 
-                  onClick={handleNext}
-                  disabled={activeStep === 0 && !formData.category}
-                  endIcon={<ArrowForward />}
-                  sx={{ borderRadius: 3, px: 4, fontWeight: 700 }}
-                >
-                  Próximo
-                </Button>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 6 }}>
+              {activeStep === steps.length - 1 && (!formData.category || !formData.description.trim() || !formData.street || !formData.neighborhood) && (
+                <Alert severity="warning" sx={{ borderRadius: 3 }}>
+                  Por favor, volte e preencha todos os campos obrigatórios (Categoria, Descrição, Rua e Bairro).
+                </Alert>
               )}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Button 
+                  disabled={activeStep === 0} 
+                  onClick={handleBack}
+                  startIcon={<ArrowBack />}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Voltar
+                </Button>
+                
+                {activeStep === steps.length - 1 ? (
+                  <Button 
+                    variant="contained" 
+                    onClick={handleSubmit} 
+                    disabled={loading || !formData.category || !formData.description.trim() || !formData.street || !formData.neighborhood}
+                    sx={{ borderRadius: 3, px: 4, fontWeight: 700 }}
+                  >
+                    {loading ? <CircularProgress size={24} color="inherit" /> : 'Finalizar Relato'}
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="contained" 
+                    onClick={handleNext}
+                    disabled={
+                      (activeStep === 0 && !formData.category) ||
+                      (activeStep === 1 && !formData.description.trim()) ||
+                      (activeStep === 2 && (!position || !formData.street || !formData.neighborhood))
+                    }
+                    endIcon={<ArrowForward />}
+                    sx={{ borderRadius: 3, px: 4, fontWeight: 700 }}
+                  >
+                    Próximo
+                  </Button>
+                )}
+              </Box>
             </Box>
           )}
         </Paper>

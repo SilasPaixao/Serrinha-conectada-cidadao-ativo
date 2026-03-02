@@ -81,7 +81,17 @@ export function setupRoutes(app: Express) {
   // Admin/Government Routes
   app.get("/api/admin/issues", authenticate, authorize(["GOVERNMENT", "ADMIN"]), async (req, res) => {
     try {
-      const issues = await issueService.getIssues({});
+      const { status, category, neighborhood } = req.query;
+      const filters: any = {};
+      if (status) filters.status = status;
+      if (category) filters.category = category;
+      // Neighborhood filtering would require address parsing or a dedicated field
+      // For now, we'll filter by address containing the neighborhood string if provided
+      if (neighborhood) {
+        filters.address = { contains: neighborhood as string, mode: 'insensitive' };
+      }
+
+      const issues = await issueService.getIssues(filters);
       res.json(issues);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -93,6 +103,15 @@ export function setupRoutes(app: Express) {
       const { status, comment } = req.body;
       const issue = await issueService.updateStatus(req.params.id, status, comment, req.user!.id);
       res.json(issue);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/admin/issues/:id", authenticate, authorize(["ADMIN"]), async (req, res) => {
+    try {
+      await issueService.deleteIssue(req.params.id);
+      res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

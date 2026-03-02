@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Typography, Box, TextField, Button, Paper, Container, Alert, CircularProgress, InputAdornment, IconButton } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
 import { Email, Lock, Visibility, VisibilityOff, ArrowBack } from '@mui/icons-material';
@@ -12,6 +12,16 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      if (user.role === 'ADMIN' || user.role === 'GOVERNMENT') {
+        navigate('/admin-government');
+      }
+    }
+  }, [navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -21,7 +31,12 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       onLogin(response.data.user);
-      navigate('/');
+      const user = response.data.user;
+      if (user.role === 'ADMIN' || user.role === 'GOVERNMENT') {
+        navigate('/admin-government');
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'E-mail ou senha incorretos.');
     } finally {
@@ -156,16 +171,18 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
           >
             {loading ? <CircularProgress size={24} color="inherit" /> : 'Entrar na Conta'}
           </Button>
+          
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Button 
+              variant="text" 
+              size="small"
+              onClick={() => alert("Por motivos de segurança, peça para o administrador criar uma nova conta")}
+              sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600 }}
+            >
+              Esqueci minha senha
+            </Button>
+          </Box>
         </form>
-
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            Acesso administrativo?{' '}
-            <Link to="/register" style={{ color: '#004a8d', fontWeight: 700, textDecoration: 'none' }}>
-              Cadastre-se aqui
-            </Link>
-          </Typography>
-        </Box>
       </Paper>
     </Container>
   </Box>

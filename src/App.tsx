@@ -239,7 +239,6 @@ export default function App() {
             <Route path="/track" element={<IssueTracker />} />
             <Route path="/admin-government" element={<AdminDashboard />} />
             <Route path="/login" element={<Login onLogin={(u: any) => setUser(u)} />} />
-            <Route path="/register" element={<Register />} />
           </Routes>
         </Container>
       </Box>
@@ -259,21 +258,21 @@ export default function App() {
               © {new Date().getFullYear()} Prefeitura Municipal de Serrinha. Todos os direitos reservados.
             </Typography>
             <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-              <Typography 
-                variant="caption" 
+              <Button 
                 component={Link} 
                 to="/login" 
+                size="small"
                 sx={{ 
                   color: 'text.disabled', 
-                  textDecoration: 'none', 
+                  textTransform: 'none',
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: 0.5,
-                  '&:hover': { color: 'text.secondary' }
+                  '&:hover': { color: 'text.secondary', bgcolor: 'transparent' }
                 }}
               >
                 <Settings sx={{ fontSize: 14 }} /> Acesso Restrito
-              </Typography>
+              </Button>
             </Box>
           </Box>
         </Container>

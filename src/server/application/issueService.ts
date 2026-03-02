@@ -20,6 +20,10 @@ export class IssueService {
     return `SC-${date}-${random}`;
   }
 
+  private async resolveImageUrl(imageUrl: string | null | undefined): Promise<string | null> {
+    return s3Service.getFileUrl(imageUrl);
+  }
+
   async createIssue(data: z.infer<typeof createIssueSchema>, userId: string | null, file?: Express.Multer.File) {
     const protocol = this.generateProtocol();
     let imageUrl: string | undefined;
@@ -38,11 +42,14 @@ export class IssueService {
       },
     });
 
-    return issue;
+    return {
+      ...issue,
+      imageUrl: await this.resolveImageUrl(issue.imageUrl)
+    };
   }
 
   async getIssues(filters: any) {
-    return prisma.issue.findMany({
+    const issues = await prisma.issue.findMany({
       where: filters,
       include: {
         user: {
@@ -57,6 +64,11 @@ export class IssueService {
       },
       orderBy: { createdAt: "desc" }
     });
+
+    return Promise.all(issues.map(async issue => ({
+      ...issue,
+      imageUrl: await this.resolveImageUrl(issue.imageUrl)
+    })));
   }
 
   async updateStatus(issueId: string, status: any, comment: string, changedById: string) {
@@ -80,7 +92,7 @@ export class IssueService {
   }
 
   async getIssueByProtocol(protocol: string) {
-    return prisma.issue.findUnique({
+    const issue = await prisma.issue.findUnique({
       where: { protocol },
       include: {
         history: {
@@ -90,6 +102,19 @@ export class IssueService {
           orderBy: { createdAt: "desc" }
         }
       }
+    });
+
+    if (!issue) return null;
+
+    return {
+      ...issue,
+      imageUrl: await this.resolveImageUrl(issue.imageUrl)
+    };
+  }
+
+  async deleteIssue(id: string) {
+    return prisma.issue.delete({
+      where: { id },
     });
   }
 }

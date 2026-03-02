@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Typography, 
   Box, 
@@ -9,6 +10,7 @@ import {
   TableContainer, 
   TableHead, 
   TableRow,
+  TablePagination,
   Button,
   Chip,
   Dialog,
@@ -22,7 +24,13 @@ import {
   Card,
   Grid,
   Avatar,
-  Stack
+  Stack,
+  Tabs,
+  Tab,
+  InputAdornment,
+  Divider,
+  Fade,
+  CircularProgress
 } from '@mui/material';
 import { 
   Edit, 
@@ -32,43 +40,113 @@ import {
   PendingActions, 
   CheckCircle, 
   ErrorOutline,
-  FilterList
+  FilterList,
+  Map as MapIcon,
+  List as ListIcon,
+  Delete,
+  Search,
+  Refresh,
+  LocationOn,
+  Logout,
+  ImageNotSupported,
+  Visibility,
+  Close,
+  OpenInNew
 } from '@mui/icons-material';
 import axios from 'axios';
 import { format } from 'date-fns';
 import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix Leaflet icon issue using CDN URLs
+const DefaultIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
 
 const statusMap: any = {
-  PENDING: { label: 'Pendente', color: 'warning', icon: <PendingActions sx={{ fontSize: 16 }} /> },
-  IN_PROGRESS: { label: 'Em Andamento', color: 'info', icon: <Assessment sx={{ fontSize: 16 }} /> },
-  RESOLVED: { label: 'Resolvido', color: 'success', icon: <CheckCircle sx={{ fontSize: 16 }} /> },
-  REJECTED: { label: 'Rejeitado', color: 'error', icon: <ErrorOutline sx={{ fontSize: 16 }} /> },
+  PENDING: { label: 'Pendente', color: 'warning', icon: <PendingActions sx={{ fontSize: 16 }} />, bg: '#fff7ed', text: '#9a3412' },
+  IN_PROGRESS: { label: 'Em Execução', color: 'info', icon: <Assessment sx={{ fontSize: 16 }} />, bg: '#f0f9ff', text: '#0369a1' },
+  RESOLVED: { label: 'Executado', color: 'success', icon: <CheckCircle sx={{ fontSize: 16 }} />, bg: '#f0fdf4', text: '#15803d' },
+  REJECTED: { label: 'Rejeitado', color: 'error', icon: <ErrorOutline sx={{ fontSize: 16 }} />, bg: '#fef2f2', text: '#b91c1c' },
 };
 
+const categories = [
+  'Iluminação Pública',
+  'Buracos em Vias',
+  'Limpeza Urbana',
+  'Esgoto/Drenagem',
+  'Poda de Árvores',
+  'Sinalização',
+  'Outros'
+];
+
+const neighborhoods = [
+  'Centro',
+  'Vaquejada',
+  'Cidade Nova',
+  'Ginásio',
+  'Rodoviária',
+  'Novo Horizonte',
+  'Oséas',
+  'Urbis',
+  'Bomba',
+  'Colina das Mangueiras',
+  'Cruzeiro',
+  'Santa',
+  'Vila de Fátima',
+  'Morena Bela'
+].sort();
+
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [issues, setIssues] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [openDialog, setOpenDialog] = useState(false);
+  const [openImageModal, setOpenImageModal] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [comment, setComment] = useState('');
+  const [viewTab, setViewTab] = useState(0);
+  
+  // Filters
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterNeighborhood, setFilterNeighborhood] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const fetchIssues = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
+      // Fetch all issues to keep stats constant regardless of filters
       const response = await axios.get('/api/admin/issues', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setIssues(response.data);
     } catch (err) {
       console.error('Erro ao buscar relatos', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchIssues();
-  }, []);
+  }, []); // Fetch only once on mount or when manually refreshed
 
   const handleUpdateStatus = async () => {
     try {
@@ -78,36 +156,87 @@ export default function AdminDashboard() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setOpenDialog(false);
+      setComment('');
       fetchIssues();
     } catch (err) {
       console.error('Erro ao atualizar status', err);
     }
   };
 
+  const handleDeleteIssue = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/admin/issues/${selectedIssue.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOpenDeleteDialog(false);
+      fetchIssues();
+    } catch (err) {
+      console.error('Erro ao excluir relato', err);
+    }
+  };
+
+  const filteredIssues = useMemo(() => {
+    return issues.filter(issue => {
+      const matchesStatus = !filterStatus || issue.status === filterStatus;
+      const matchesCategory = !filterCategory || issue.category === filterCategory;
+      const matchesNeighborhood = !filterNeighborhood || 
+        (issue.address && issue.address.toLowerCase().includes(filterNeighborhood.toLowerCase()));
+      const matchesSearch = !searchTerm || 
+        issue.protocol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        issue.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        issue.address?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return matchesStatus && matchesCategory && matchesNeighborhood && matchesSearch;
+    });
+  }, [issues, filterStatus, filterCategory, filterNeighborhood, searchTerm]);
+
+  const paginatedIssues = useMemo(() => {
+    return filteredIssues.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredIssues, page, rowsPerPage]);
+
+  const handleChangePage = (_event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [filterStatus, filterCategory, filterNeighborhood, searchTerm]);
+
   const stats = {
     total: issues.length,
     pending: issues.filter(i => i.status === 'PENDING').length,
+    inProgress: issues.filter(i => i.status === 'IN_PROGRESS').length,
     resolved: issues.filter(i => i.status === 'RESOLVED').length,
   };
 
-  const exportToExcel = async () => {
+  const exportToExcel = async (statusFilter?: string) => {
+    const dataToExport = statusFilter ? issues.filter(i => i.status === statusFilter) : filteredIssues;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Relatos');
     
     worksheet.columns = [
-      { header: 'Protocolo', key: 'protocol', width: 20 },
+      { header: 'Protocolo', key: 'protocol', width: 25 },
       { header: 'Categoria', key: 'category', width: 20 },
       { header: 'Status', key: 'status', width: 15 },
       { header: 'Data', key: 'date', width: 20 },
-      { header: 'Descrição', key: 'description', width: 40 },
+      { header: 'Endereço', key: 'address', width: 40 },
+      { header: 'Descrição', key: 'description', width: 50 },
     ];
 
-    issues.forEach(issue => {
+    dataToExport.forEach(issue => {
       worksheet.addRow({
         protocol: issue.protocol,
         category: issue.category,
         status: statusMap[issue.status].label,
         date: format(new Date(issue.createdAt), 'dd/MM/yyyy HH:mm'),
+        address: issue.address || 'N/A',
         description: issue.description,
       });
     });
@@ -117,180 +246,492 @@ export default function AdminDashboard() {
     const url = window.URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `relatos-serrinha-${format(new Date(), 'yyyyMMdd')}.xlsx`;
+    anchor.download = `relatos-serrinha-${statusFilter || 'geral'}-${format(new Date(), 'yyyyMMdd')}.xlsx`;
     anchor.click();
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = (statusFilter?: string) => {
+    const dataToExport = statusFilter ? issues.filter(i => i.status === statusFilter) : filteredIssues;
     const doc = new jsPDF() as any;
-    doc.text('Relatório de Zeladoria Urbana - Serrinha Conectada', 14, 15);
+    doc.setFontSize(18);
+    doc.text('Relatório de Zeladoria Urbana - Serrinha Conectada', 14, 20);
+    doc.setFontSize(12);
+    doc.text(`Filtro: ${statusFilter ? statusMap[statusFilter].label : 'Geral'}`, 14, 30);
+    doc.text(`Data de Emissão: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 37);
     
-    const tableData = issues.map(issue => [
+    const tableData = dataToExport.map(issue => [
       issue.protocol,
       issue.category,
       statusMap[issue.status].label,
       format(new Date(issue.createdAt), 'dd/MM/yyyy'),
-      issue.description.substring(0, 50) + '...'
+      issue.address || 'N/A'
     ]);
 
-    doc.autoTable({
-      head: [['Protocolo', 'Categoria', 'Status', 'Data', 'Descrição']],
+    autoTable(doc, {
+      head: [['Protocolo', 'Categoria', 'Status', 'Data', 'Endereço']],
       body: tableData,
-      startY: 20,
+      startY: 45,
+      theme: 'grid',
+      headStyles: { fillColor: [0, 74, 141] }
     });
 
-    doc.save(`relatos-serrinha-${format(new Date(), 'yyyyMMdd')}.pdf`);
+    doc.save(`relatos-serrinha-${statusFilter || 'geral'}-${format(new Date(), 'yyyyMMdd')}.pdf`);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
   };
 
   return (
     <Box sx={{ py: 2 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2, mb: 4 }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 4 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-1px' }}>Painel de Gestão</Typography>
-          <Typography variant="body2" color="text.secondary">Gerencie e acompanhe as solicitações de zeladoria urbana.</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-1.5px', color: 'primary.main' }}>Painel de Gestão</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>Monitoramento e controle de solicitações urbanas.</Typography>
         </Box>
         <Stack direction="row" spacing={1}>
           <Button 
-            variant="outlined" 
-            startIcon={<Download />} 
-            onClick={exportToExcel}
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            variant="contained" 
+            startIcon={<Refresh />} 
+            onClick={fetchIssues}
+            disabled={loading}
+            sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 700, px: 3 }}
           >
-            Exportar Excel
+            Atualizar
           </Button>
           <Button 
             variant="outlined" 
-            startIcon={<PictureAsPdf />} 
-            onClick={exportToPDF}
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            color="error"
+            startIcon={<Logout />} 
+            onClick={handleLogout}
+            sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 700, px: 3 }}
           >
-            PDF
+            Sair
           </Button>
+          <Tooltip title="Exportar Relatório Geral">
+            <IconButton onClick={() => exportToExcel()} sx={{ border: '1px solid rgba(0,0,0,0.1)', borderRadius: 3 }}>
+              <Download />
+            </IconButton>
+          </Tooltip>
         </Stack>
       </Box>
 
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {[
-          { label: 'Total de Relatos', value: stats.total, color: 'primary.main', icon: <Assessment /> },
-          { label: 'Pendentes', value: stats.pending, color: 'warning.main', icon: <PendingActions /> },
-          { label: 'Resolvidos', value: stats.resolved, color: 'success.main', icon: <CheckCircle /> },
+          { label: 'Total de Relatos', value: stats.total, color: '#1e293b', icon: <Assessment />, status: null },
+          { label: 'Pendentes', value: stats.pending, color: '#9a3412', icon: <PendingActions />, status: 'PENDING' },
+          { label: 'Em Execução', value: stats.inProgress, color: '#0369a1', icon: <Assessment />, status: 'IN_PROGRESS' },
+          { label: 'Executados', value: stats.resolved, color: '#15803d', icon: <CheckCircle />, status: 'RESOLVED' },
         ].map((stat, i) => (
-          <Grid size={{ xs: 12, sm: 4 }} key={i}>
-            <Card sx={{ p: 3, borderRadius: 4, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
+            <Card sx={{ 
+              p: 3, 
+              borderRadius: 5, 
+              border: '1px solid rgba(0,0,0,0.05)', 
+              boxShadow: '0 10px 30px rgba(0,0,0,0.02)',
+              transition: 'transform 0.2s',
+              '&:hover': { transform: 'translateY(-4px)' }
+            }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>{stat.label}</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5 }}>{stat.value}</Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '1px' }}>{stat.label}</Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 900, mt: 0.5, color: stat.color }}>{stat.value}</Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: `${stat.color.split('.')[0]}.light`, color: stat.color }}>
+                <Avatar sx={{ bgcolor: `${stat.color}15`, color: stat.color, borderRadius: 3, width: 48, height: 48 }}>
                   {stat.icon}
                 </Avatar>
               </Box>
+              {stat.status && (
+                <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', gap: 1 }}>
+                  <Button size="small" onClick={() => exportToExcel(stat.status!)} sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'none' }}>Excel</Button>
+                  <Button size="small" onClick={() => exportToPDF(stat.status!)} sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'none' }}>PDF</Button>
+                </Box>
+              )}
             </Card>
           </Grid>
         ))}
       </Grid>
 
-      {/* Table Section */}
-      <Paper sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 30px rgba(0,0,0,0.03)' }}>
-        <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>Solicitações Recentes</Typography>
-          <Button startIcon={<FilterList />} size="small" sx={{ textTransform: 'none', fontWeight: 600 }}>Filtrar</Button>
-        </Box>
-        
-        {/* Desktop Table View */}
-        <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <TableContainer>
-            <Table>
-              <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.01)' }}>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>Protocolo</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Categoria</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Data de Registro</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>Ações</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {issues.map((issue) => (
-                  <TableRow key={issue.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                    <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{issue.protocol}</TableCell>
-                    <TableCell>{issue.category}</TableCell>
-                    <TableCell>{format(new Date(issue.createdAt), 'dd/MM/yyyy HH:mm')}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        icon={statusMap[issue.status].icon}
-                        label={statusMap[issue.status].label} 
-                        color={statusMap[issue.status].color} 
-                        size="small" 
-                        sx={{ fontWeight: 700, borderRadius: 1.5 }}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Atualizar Status">
-                        <IconButton 
-                          size="small"
+      {/* Filters Bar */}
+      <Paper sx={{ p: 3, mb: 4, borderRadius: 5, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid size={{ xs: 12, md: 3 }}>
+            <TextField
+              fullWidth
+              placeholder="Buscar por protocolo ou descrição..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search color="action" />
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: 3 }
+              }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
+            <TextField
+              select
+              fullWidth
+              label="Status"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+            >
+              <MenuItem value="">Todos os Status</MenuItem>
+              {Object.keys(statusMap).map((key) => (
+                <MenuItem key={key} value={key}>{statusMap[key].label}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
+            <TextField
+              select
+              fullWidth
+              label="Categoria"
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+            >
+              <MenuItem value="">Todas as Categorias</MenuItem>
+              {categories.map((cat) => (
+                <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4, md: 2 }}>
+            <TextField
+              select
+              fullWidth
+              label="Bairro"
+              value={filterNeighborhood}
+              onChange={(e) => setFilterNeighborhood(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+            >
+              <MenuItem value="">Todos os Bairros</MenuItem>
+              {neighborhoods.map((n) => (
+                <MenuItem key={n} value={n}>{n}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4, md: 2 }}>
+            <Button 
+              fullWidth 
+              variant="outlined" 
+              onClick={() => {
+                setSearchTerm('');
+                setFilterStatus('');
+                setFilterCategory('');
+                setFilterNeighborhood('');
+              }}
+              sx={{ borderRadius: 3, height: 56, textTransform: 'none', fontWeight: 700 }}
+            >
+              Limpar Filtros
+            </Button>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {/* View Switcher */}
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+        <Tabs 
+          value={viewTab} 
+          onChange={(_, v) => setViewTab(v)} 
+          sx={{ 
+            bgcolor: 'rgba(0,0,0,0.03)', 
+            borderRadius: 4, 
+            p: 0.5,
+            '& .MuiTabs-indicator': { height: '100%', borderRadius: 3.5, zIndex: 0, bgcolor: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
+            '& .MuiTab-root': { zIndex: 1, textTransform: 'none', fontWeight: 700, minHeight: 44, borderRadius: 3.5, px: 4 }
+          }}
+        >
+          <Tab icon={<ListIcon sx={{ mr: 1 }} />} iconPosition="start" label="Lista" />
+          <Tab icon={<MapIcon sx={{ mr: 1 }} />} iconPosition="start" label="Mapa" />
+        </Tabs>
+      </Box>
+
+      {/* Content Area */}
+      <Fade in={!loading}>
+        <Box>
+          {viewTab === 0 ? (
+            <Paper sx={{ borderRadius: 5, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
+              <TableContainer>
+                <Table>
+                  <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.01)' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>FOTO</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>PROTOCOLO</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>CATEGORIA</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>DATA</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>ENDEREÇO</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>STATUS</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800, color: 'text.secondary' }}>AÇÕES</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                      {paginatedIssues.map((issue) => (
+                        <TableRow key={issue.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                          <TableCell>
+                            {issue.imageUrl ? (
+                              <Box 
+                                onClick={() => {
+                                  setSelectedIssue(issue);
+                                  setOpenImageModal(true);
+                                }}
+                                sx={{ 
+                                  width: 60, 
+                                  height: 60, 
+                                  borderRadius: 2, 
+                                  overflow: 'hidden', 
+                                  cursor: 'pointer',
+                                  border: '2px solid rgba(0,0,0,0.05)',
+                                  position: 'relative',
+                                  '&:hover': { 
+                                    transform: 'scale(1.05)',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    '& .zoom-overlay': { opacity: 1 }
+                                  },
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <img 
+                                  src={issue.imageUrl} 
+                                  alt="Thumbnail" 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  referrerPolicy="no-referrer"
+                                  onError={(e: any) => {
+                                    e.target.src = 'https://placehold.co/100x100?text=Erro';
+                                  }}
+                                />
+                                <Box 
+                                  className="zoom-overlay"
+                                  sx={{ 
+                                    position: 'absolute', 
+                                    top: 0, 
+                                    left: 0, 
+                                    right: 0, 
+                                    bottom: 0, 
+                                    bgcolor: 'rgba(0,0,0,0.2)', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center',
+                                    opacity: 0,
+                                    transition: 'opacity 0.2s ease'
+                                  }}
+                                >
+                                  <Visibility sx={{ color: 'white', fontSize: 20 }} />
+                                </Box>
+                              </Box>
+                            ) : (
+                              <Box sx={{ width: 60, height: 60, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed rgba(0,0,0,0.1)' }}>
+                                <ImageNotSupported sx={{ fontSize: 24, color: 'text.disabled' }} />
+                              </Box>
+                            )}
+                          </TableCell>
+                          <TableCell 
+                            sx={{ 
+                              fontWeight: 800, 
+                              color: 'primary.main', 
+                              cursor: 'pointer',
+                              '&:hover': { textDecoration: 'underline' }
+                            }}
+                            onClick={() => {
+                              setSelectedIssue(issue);
+                              setNewStatus(issue.status);
+                              setOpenDialog(true);
+                            }}
+                          >
+                            {issue.protocol}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{issue.category}</TableCell>
+                        <TableCell sx={{ color: 'text.secondary' }}>{format(new Date(issue.createdAt), 'dd/MM/yyyy HH:mm')}</TableCell>
+                        <TableCell sx={{ maxWidth: 250 }}>
+                          <Typography variant="body2" noWrap title={issue.address}>
+                            {issue.address || 'Localização no mapa'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={statusMap[issue.status].label} 
+                            sx={{ 
+                              fontWeight: 800, 
+                              borderRadius: 2, 
+                              bgcolor: statusMap[issue.status].bg, 
+                              color: statusMap[issue.status].text,
+                              fontSize: '0.75rem'
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Tooltip title="Atualizar Status">
+                              <IconButton 
+                                size="small"
+                                onClick={() => {
+                                  setSelectedIssue(issue);
+                                  setNewStatus(issue.status);
+                                  setOpenDialog(true);
+                                }}
+                                sx={{ bgcolor: 'rgba(0,74,141,0.05)', color: 'primary.main', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                              >
+                                <Edit fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Excluir Relato">
+                              <IconButton 
+                                size="small"
+                                onClick={() => {
+                                  setSelectedIssue(issue);
+                                  setOpenDeleteDialog(true);
+                                }}
+                                sx={{ bgcolor: 'rgba(239,68,68,0.05)', color: 'error.main', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 15, 25]}
+                component="div"
+                count={filteredIssues.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                labelRowsPerPage="Itens por página:"
+                labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+                sx={{ borderTop: '1px solid rgba(0,0,0,0.05)', fontWeight: 600 }}
+              />
+              {filteredIssues.length === 0 && (
+                <Box sx={{ py: 10, textAlign: 'center' }}>
+                  <Avatar sx={{ mx: 'auto', mb: 2, bgcolor: 'rgba(0,0,0,0.05)', color: 'text.disabled', width: 64, height: 64 }}>
+                    <Search fontSize="large" />
+                  </Avatar>
+                  <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>Nenhum relato encontrado</Typography>
+                  <Typography variant="body2" color="text.disabled">Tente ajustar seus filtros de busca.</Typography>
+                </Box>
+              )}
+            </Paper>
+          ) : (
+            <Paper sx={{ borderRadius: 5, overflow: 'hidden', height: '600px', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
+              <MapContainer center={[-11.66, -38.96]} zoom={14} style={{ height: '100%', width: '100%' }}>
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                {filteredIssues.map((issue) => (
+                  <Marker key={issue.id} position={[issue.latitude, issue.longitude]}>
+                    <Popup>
+                      <Box sx={{ p: 1, minWidth: 250, maxWidth: 300 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', mb: 0.5 }}>{issue.protocol}</Typography>
+                        <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                          <Chip 
+                            label={statusMap[issue.status].label} 
+                            size="small"
+                            sx={{ fontWeight: 700, bgcolor: statusMap[issue.status].bg, color: statusMap[issue.status].text, height: 20, fontSize: '0.65rem' }}
+                          />
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>{issue.category}</Typography>
+                        </Box>
+                        
+                        <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', display: 'block', mb: 0.5 }}>Descrição:</Typography>
+                        <Typography variant="body2" sx={{ mb: 1.5, fontSize: '0.75rem', lineHeight: 1.4, color: 'text.primary' }}>
+                          {issue.description}
+                        </Typography>
+
+                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', display: 'block', mb: 1 }}>Histórico de Status:</Typography>
+                        <Box sx={{ maxHeight: 120, overflowY: 'auto', pr: 0.5, mb: 1.5, '&::-webkit-scrollbar': { width: '4px' }, '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,0,0,0.1)', borderRadius: '4px' } }}>
+                          <Stack spacing={0}>
+                            {/* Subsequent History (Newest first) */}
+                            {issue.history && issue.history.map((h: any, idx: number) => (
+                              <Box key={idx} sx={{ pl: 1.5, pb: 1, borderLeft: '2px solid', borderColor: statusMap[h.status]?.text || 'divider', position: 'relative' }}>
+                                <Box sx={{ 
+                                  position: 'absolute', 
+                                  left: -5, 
+                                  top: 0, 
+                                  width: 8, 
+                                  height: 8, 
+                                  borderRadius: '50%', 
+                                  bgcolor: statusMap[h.status]?.text || 'divider',
+                                  border: '2px solid white'
+                                }} />
+                                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', fontSize: '0.65rem', lineHeight: 1 }}>
+                                  {statusMap[h.status]?.label}
+                                </Typography>
+                                <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled', fontSize: '0.6rem', mb: 0.5 }}>
+                                  {format(new Date(h.createdAt), 'dd/MM/yyyy HH:mm')}
+                                </Typography>
+                                {h.comment && (
+                                  <Typography variant="caption" sx={{ 
+                                    display: 'block', 
+                                    color: 'text.secondary', 
+                                    fontStyle: 'italic', 
+                                    fontSize: '0.65rem', 
+                                    lineHeight: 1.2,
+                                    bgcolor: 'rgba(0,0,0,0.03)',
+                                    p: 0.5,
+                                    borderRadius: 1
+                                  }}>
+                                    "{h.comment}"
+                                  </Typography>
+                                )}
+                              </Box>
+                            ))}
+
+                            {/* Initial Creation (Always at the bottom of the stack since history is desc) */}
+                            <Box sx={{ pl: 1.5, pb: 0, borderLeft: '2px solid transparent', position: 'relative' }}>
+                              <Box sx={{ 
+                                position: 'absolute', 
+                                left: -5, 
+                                top: 0, 
+                                width: 8, 
+                                height: 8, 
+                                borderRadius: '50%', 
+                                bgcolor: 'text.disabled',
+                                border: '2px solid white'
+                              }} />
+                              <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', fontSize: '0.65rem', lineHeight: 1, color: 'text.secondary' }}>
+                                Relato Registrado
+                              </Typography>
+                              <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled', fontSize: '0.6rem' }}>
+                                {format(new Date(issue.createdAt), 'dd/MM/yyyy HH:mm')}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Box>
+
+                        <Divider sx={{ my: 1 }} />
+                        <Button 
+                          fullWidth 
+                          size="small" 
+                          variant="contained" 
                           onClick={() => {
                             setSelectedIssue(issue);
                             setNewStatus(issue.status);
                             setOpenDialog(true);
                           }}
-                          sx={{ border: '1px solid rgba(0,0,0,0.05)' }}
+                          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, fontSize: '0.7rem' }}
                         >
-                          <Edit fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
+                          Gerenciar Solicitação
+                        </Button>
+                      </Box>
+                    </Popup>
+                  </Marker>
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              </MapContainer>
+            </Paper>
+          )}
         </Box>
-
-        {/* Mobile Card View */}
-        <Box sx={{ display: { xs: 'block', md: 'none' }, p: 2 }}>
-          {issues.map((issue) => (
-            <Card key={issue.id} sx={{ mb: 2, p: 2, borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)', boxShadow: 'none' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main' }}>{issue.protocol}</Typography>
-                <Chip 
-                  label={statusMap[issue.status].label} 
-                  color={statusMap[issue.status].color} 
-                  size="small" 
-                  sx={{ fontWeight: 700, borderRadius: 1.5, fontSize: '0.7rem' }}
-                />
-              </Box>
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{issue.category}</Typography>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
-                {format(new Date(issue.createdAt), 'dd/MM/yyyy HH:mm')}
-              </Typography>
-              <Button 
-                fullWidth 
-                variant="outlined" 
-                size="small"
-                startIcon={<Edit />}
-                onClick={() => {
-                  setSelectedIssue(issue);
-                  setNewStatus(issue.status);
-                  setOpenDialog(true);
-                }}
-                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
-              >
-                Atualizar Status
-              </Button>
-            </Card>
-          ))}
-        </Box>
-
-        {issues.length === 0 && (
-          <Box sx={{ py: 8, textAlign: 'center' }}>
-            <Typography color="text.secondary">Nenhuma solicitação encontrada.</Typography>
-          </Box>
-        )}
-      </Paper>
+      </Fade>
 
       {/* Update Dialog */}
       <Dialog 
@@ -298,15 +739,137 @@ export default function AdminDashboard() {
         onClose={() => setOpenDialog(false)} 
         fullWidth 
         maxWidth="sm"
-        PaperProps={{ sx: { borderRadius: 4, p: 1 } }}
+        PaperProps={{ 
+          sx: { 
+            borderRadius: 6, 
+            p: 1,
+            backgroundImage: 'linear-gradient(to bottom, #ffffff, #f9fafb)'
+          } 
+        }}
       >
-        <DialogTitle sx={{ fontWeight: 800 }}>Atualizar Status do Relato</DialogTitle>
+        <DialogTitle sx={{ 
+          fontWeight: 900, 
+          fontSize: '1.5rem', 
+          letterSpacing: '-1px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          Detalhes da Solicitação
+          <IconButton onClick={() => setOpenDialog(false)} size="small">
+            <Close />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2 }}>
-              <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>PROTOCOLO</Typography>
-              <Typography variant="body1" sx={{ fontWeight: 700 }}>{selectedIssue?.protocol}</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>PROTOCOLO</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 800, color: 'primary.main', fontFamily: 'monospace' }}>{selectedIssue?.protocol}</Typography>
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>CIDADÃO</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 800 }}>{selectedIssue?.user?.name || 'Anônimo'}</Typography>
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>CATEGORIA</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 800 }}>{selectedIssue?.category}</Typography>
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>STATUS ATUAL</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: statusMap[selectedIssue?.status]?.text }} />
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: statusMap[selectedIssue?.status]?.text }}>
+                      {statusMap[selectedIssue?.status]?.label}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+
+            {selectedIssue?.imageUrl && (
+              <Box sx={{ position: 'relative' }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', mb: 1, display: 'block' }}>EVIDÊNCIA FOTOGRÁFICA</Typography>
+                <Box 
+                  onClick={() => setOpenImageModal(true)}
+                  sx={{ 
+                    width: '100%', 
+                    borderRadius: 4, 
+                    overflow: 'hidden', 
+                    border: '2px solid rgba(0,0,0,0.05)',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: 'transform 0.2s ease',
+                    '&:hover': {
+                      transform: 'scale(1.01)',
+                      '& .overlay': { opacity: 1 }
+                    }
+                  }}
+                >
+                  <img 
+                    src={selectedIssue.imageUrl} 
+                    alt="Evidência" 
+                    style={{ width: '100%', height: 'auto', maxHeight: 350, objectFit: 'cover', display: 'block' }} 
+                    referrerPolicy="no-referrer"
+                    onError={(e: any) => {
+                      e.target.src = 'https://placehold.co/600x400?text=Imagem+não+encontrada';
+                    }}
+                  />
+                  <Box className="overlay" sx={{ 
+                    position: 'absolute', 
+                    top: 0, 
+                    left: 0, 
+                    right: 0, 
+                    bottom: 0, 
+                    bgcolor: 'rgba(0,0,0,0.3)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    opacity: 0,
+                    transition: 'opacity 0.2s ease'
+                  }}>
+                    <Box sx={{ bgcolor: 'white', px: 2, py: 1, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Visibility fontSize="small" />
+                      <Typography variant="button" sx={{ fontWeight: 700 }}>Ampliar Foto</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+
+            <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase' }}>DESCRIÇÃO DO CIDADÃO</Typography>
+              <Typography variant="body2" sx={{ mt: 1, fontWeight: 500, lineHeight: 1.6 }}>{selectedIssue?.description}</Typography>
             </Box>
+
+            <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase' }}>LOCALIZAÇÃO</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                <LocationOn color="primary" fontSize="small" />
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedIssue?.address || 'Ver no mapa'}</Typography>
+              </Box>
+              <Button 
+                variant="text" 
+                size="small" 
+                startIcon={<OpenInNew />}
+                sx={{ mt: 1, fontWeight: 700, textTransform: 'none' }}
+                onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${selectedIssue.latitude},${selectedIssue.longitude}`, '_blank')}
+              >
+                Abrir no Google Maps
+              </Button>
+            </Box>
+
+            <Divider />
+
+            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Ações de Gestão</Typography>
+
             <TextField
               select
               fullWidth
@@ -321,24 +884,76 @@ export default function AdminDashboard() {
             </TextField>
             <TextField
               fullWidth
-              label="Comentário / Observação para o Cidadão"
+              label="Comentário para o Cidadão"
               multiline
-              rows={4}
+              rows={3}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Descreva o andamento ou motivo da resolução/rejeição..."
+              placeholder="Descreva o andamento ou motivo da resolução..."
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
             />
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
+        <DialogActions sx={{ p: 4 }}>
+          <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 800, color: 'text.secondary' }}>Fechar</Button>
           <Button 
             variant="contained" 
             onClick={handleUpdateStatus}
-            sx={{ borderRadius: 2, px: 3, fontWeight: 700 }}
+            sx={{ borderRadius: 3, px: 4, py: 1.2, fontWeight: 800, boxShadow: '0 8px 20px rgba(0,74,141,0.2)' }}
           >
             Salvar Alteração
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Image Lightbox */}
+      <Dialog 
+        open={openImageModal} 
+        onClose={() => setOpenImageModal(false)} 
+        maxWidth="lg"
+        PaperProps={{ sx: { bgcolor: 'transparent', boxShadow: 'none', overflow: 'hidden' } }}
+      >
+        <Box sx={{ position: 'relative' }}>
+          <IconButton 
+            onClick={() => setOpenImageModal(false)}
+            sx={{ position: 'absolute', top: 10, right: 10, bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: 'white' }, zIndex: 10 }}
+          >
+            <Close />
+          </IconButton>
+          <img 
+            src={selectedIssue?.imageUrl} 
+            alt="Evidência Full" 
+            style={{ maxWidth: '100%', maxHeight: '90vh', display: 'block', borderRadius: 16 }} 
+            referrerPolicy="no-referrer"
+            onError={(e: any) => {
+              e.target.src = 'https://placehold.co/800x600?text=Erro+ao+carregar+imagem';
+            }}
+          />
+        </Box>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <Dialog 
+        open={openDeleteDialog} 
+        onClose={() => setOpenDeleteDialog(false)}
+        PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: 'error.main' }}>Confirmar Exclusão</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontWeight: 500 }}>
+            Tem certeza que deseja excluir permanentemente o relato <strong>{selectedIssue?.protocol}</strong>? 
+            Esta ação não pode ser desfeita e removerá todos os registros históricos associados.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenDeleteDialog(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={handleDeleteIssue}
+            sx={{ borderRadius: 2, fontWeight: 800 }}
+          >
+            Sim, Excluir
           </Button>
         </DialogActions>
       </Dialog>

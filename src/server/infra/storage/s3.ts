@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import path from "path";
 import crypto from "crypto";
@@ -33,12 +33,29 @@ export class S3Service {
     });
 
     await s3Client.send(command);
-
-    if (this.publicBaseUrl) {
-      return `${this.publicBaseUrl}/${key}`;
-    }
-
-    // Fallback if public URL is not set
     return key;
+  }
+
+  async getFileUrl(key: string | null | undefined): Promise<string | null> {
+    if (!key) return null;
+    
+    // If it's already a full URL, return it (compatibility)
+    if (key.startsWith('http')) return key;
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      });
+
+      // We'll default to signed URL for security/reliability.
+      return await getSignedUrl(s3Client, command, { expiresIn: 3600 * 24 }); // 24 hours
+    } catch (error) {
+      console.error("Error generating signed URL:", error);
+      if (this.publicBaseUrl) {
+        return `${this.publicBaseUrl}/${key}`;
+      }
+      return key;
+    }
   }
 }
