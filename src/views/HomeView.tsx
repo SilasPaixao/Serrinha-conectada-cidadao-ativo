@@ -18,7 +18,7 @@ export default function HomeView() {
           py: { xs: 8, md: 12 }, 
           px: { xs: 3, md: 6 },
           textAlign: 'center', 
-          background: 'linear-gradient(rgba(0, 74, 141, 0.85), rgba(0, 45, 90, 0.9)), url("https://i.postimg.cc/SRHyxrRv/Serrinha-Image.png")',
+          background: 'linear-gradient(135deg, rgba(0, 74, 141, 0.9) 0%, rgba(0, 45, 90, 0.95) 100%), url("https://i.postimg.cc/SRHyxrRv/Serrinha-Image.png")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           color: 'white', 
@@ -26,7 +26,8 @@ export default function HomeView() {
           mb: { xs: 4, md: 8 },
           position: 'relative',
           overflow: 'hidden',
-          boxShadow: '0 20px 40px rgba(0, 74, 141, 0.2)'
+          boxShadow: '0 20px 60px rgba(0, 74, 141, 0.3)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
         <Box sx={{ position: 'relative', zIndex: 2 }}>

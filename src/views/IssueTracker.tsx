@@ -16,6 +16,7 @@ import { Search, History, Assignment, Image as ImageIcon, Close, Visibility } fr
 import axios from 'axios';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatErrorMessage } from '../utils/errorUtils';
 
 const statusMap: any = {
   PENDING: { label: 'Pendente', color: 'warning', icon: '⏳' },
@@ -40,7 +41,7 @@ export default function IssueTracker() {
       const response = await axios.get(`/api/issues/protocol/${protocol}`);
       setIssue(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Protocolo não encontrado. Verifique se digitou corretamente.');
+      setError(formatErrorMessage(err, 'Protocolo não encontrado. Verifique se digitou corretamente.'));
     } finally {
       setLoading(false);
     }

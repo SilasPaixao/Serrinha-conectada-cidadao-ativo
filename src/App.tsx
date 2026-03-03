@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
 import { 
   AppBar, 
   Toolbar, 
@@ -44,15 +44,13 @@ import Login from './views/Login';
 import Register from './views/Register';
 
 export default function App() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(() => {
+    const savedUser = localStorage.getItem('user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) setUser(JSON.parse(savedUser));
-  }, []);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -152,7 +150,49 @@ export default function App() {
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <Box 
+      sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        minHeight: '100vh',
+        backgroundColor: '#f8fafc',
+        backgroundImage: `
+          radial-gradient(at 0% 0%, rgba(0, 74, 141, 0.03) 0px, transparent 50%),
+          radial-gradient(at 100% 100%, rgba(245, 130, 32, 0.03) 0px, transparent 50%)
+        `,
+        position: 'relative',
+        '&::before': {
+          content: '""',
+          position: 'fixed',
+          top: '5%',
+          left: '-5%',
+          width: '400px',
+          height: '400px',
+          backgroundImage: 'url("https://i.postimg.cc/CLVhXc3X/logo.jpg")',
+          backgroundSize: 'contain',
+          backgroundRepeat: 'no-repeat',
+          opacity: 0.03,
+          zIndex: 0,
+          pointerEvents: 'none',
+          filter: 'grayscale(100%)',
+        },
+        '&::after': {
+          content: '""',
+          position: 'fixed',
+          bottom: '5%',
+          right: '-5%',
+          width: '300px',
+          height: '300px',
+          backgroundImage: 'url("https://i.postimg.cc/CLVhXc3X/logo.jpg")',
+          backgroundSize: 'contain',
+          backgroundRepeat: 'no-repeat',
+          opacity: 0.03,
+          zIndex: 0,
+          pointerEvents: 'none',
+          filter: 'grayscale(100%)',
+        }
+      }}
+    >
       <AppBar 
         position="sticky" 
         elevation={0} 
@@ -160,7 +200,8 @@ export default function App() {
           backgroundColor: 'rgba(255, 255, 255, 0.8)', 
           backdropFilter: 'blur(8px)',
           borderBottom: '1px solid rgba(0,0,0,0.08)',
-          color: '#1e293b'
+          color: '#1e293b',
+          zIndex: 1100
         }}
       >
         <Container maxWidth="lg">
@@ -252,13 +293,17 @@ export default function App() {
         {drawer}
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, py: 4 }}>
+      <Box component="main" sx={{ flexGrow: 1, py: 4, position: 'relative', zIndex: 1 }}>
         <Container maxWidth="lg">
           <Routes>
             <Route path="/" element={<HomeView />} />
             <Route path="/report" element={<IssueWizard />} />
             <Route path="/track" element={<IssueTracker />} />
-            <Route path="/admin-government" element={<AdminDashboard />} />
+            <Route 
+              path="/admin-government" 
+              element={user && (user.role === 'ADMIN' || user.role === 'GOVERNMENT') ? <AdminDashboard /> : <Navigate to="/" replace />} 
+            />
+            <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login onLogin={(u: any) => setUser(u)} />} />
           </Routes>
         </Container>
@@ -270,7 +315,10 @@ export default function App() {
           py: 4, 
           mt: 'auto', 
           borderTop: '1px solid rgba(0,0,0,0.05)',
-          backgroundColor: 'white'
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          backdropFilter: 'blur(4px)',
+          position: 'relative',
+          zIndex: 1
         }}
       >
         <Container maxWidth="lg">

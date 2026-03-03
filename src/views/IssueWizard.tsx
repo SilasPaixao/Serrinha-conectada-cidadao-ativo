@@ -25,6 +25,7 @@ import { CloudUpload, LocationOn, Description, CheckCircle, ArrowBack, ArrowForw
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import L from 'leaflet';
+import { formatErrorMessage } from '../utils/errorUtils';
 
 // Fix for default marker icon in Leaflet
 let DefaultIcon = L.icon({
@@ -132,7 +133,7 @@ export default function IssueWizard() {
       
       setGeocoding(true);
       try {
-        const res = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.lat}&lon=${position.lng}`);
+        const res = await axios.get(`/api/geocode/reverse?lat=${position.lat}&lon=${position.lng}`);
         const address = res.data.address;
         
         setFormData(prev => ({
@@ -142,7 +143,9 @@ export default function IssueWizard() {
           address: res.data.display_name
         }));
       } catch (e) {
-        console.error("Reverse geocoding failed", e);
+        // Silent failure for geocoding to avoid annoying the user, 
+        // they can still type the address manually.
+        console.warn("Reverse geocoding failed (proxy or Nominatim issue)", e);
       } finally {
         setGeocoding(false);
       }
@@ -176,7 +179,7 @@ export default function IssueWizard() {
       setProtocol(response.data.protocol);
       handleNext();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao enviar relato');
+      setError(formatErrorMessage(err, 'Erro ao enviar relato'));
     } finally {
       setLoading(false);
     }

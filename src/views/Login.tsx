@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Typography, Box, TextField, Button, Paper, Container, Alert, CircularProgress, InputAdornment, IconButton } from '@mui/material';
+import { Typography, Box, TextField, Button, Paper, Container, Alert, CircularProgress, InputAdornment, IconButton, Divider } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
 import { Email, Lock, Visibility, VisibilityOff, ArrowBack } from '@mui/icons-material';
 import axios from 'axios';
+import { formatErrorMessage } from '../utils/errorUtils';
 
 export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   const [email, setEmail] = useState('');
@@ -38,7 +39,13 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
         navigate('/');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'E-mail ou senha incorretos.');
+      if (err.response && err.response.data && err.response.data.error) {
+        setError(err.response.data.error);
+      } else if (err.response && err.response.status === 401) {
+        setError('E-mail ou senha incorretos.');
+      } else {
+        setError(formatErrorMessage(err, 'Ocorreu um erro ao tentar entrar.'));
+      }
     } finally {
       setLoading(false);
     }
@@ -172,14 +179,33 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
             {loading ? <CircularProgress size={24} color="inherit" /> : 'Entrar na Conta'}
           </Button>
           
-          <Box sx={{ mt: 2, textAlign: 'center' }}>
+          <Box sx={{ mt: 2, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Button 
               variant="text" 
               size="small"
-              onClick={() => alert("Por motivos de segurança, peça para o administrador criar uma nova conta")}
+              onClick={() => alert("O procedimento no caso de senhas esquecidas é: Solicitar um cadastro como Admin")}
               sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600 }}
             >
               Esqueci minha senha
+            </Button>
+            
+            <Divider sx={{ my: 1, opacity: 0.5 }}>ou</Divider>
+            
+            <Button 
+              component={Link}
+              to="/register"
+              variant="outlined" 
+              fullWidth
+              sx={{ 
+                textTransform: 'none', 
+                borderRadius: 3, 
+                fontWeight: 700,
+                py: 1,
+                borderWidth: 2,
+                '&:hover': { borderWidth: 2 }
+              }}
+            >
+              Solicitar Cadastro como Admin
             </Button>
           </Box>
         </form>

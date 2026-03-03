@@ -3,32 +3,90 @@ import { Typography, Box, TextField, Button, Paper, Container, Alert, CircularPr
 import { Link, useNavigate } from 'react-router-dom';
 import { Person, Email, Lock, Visibility, VisibilityOff, ArrowBack, Badge } from '@mui/icons-material';
 import axios from 'axios';
+import { formatErrorMessage } from '../utils/errorUtils';
 
 export default function Register() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    role: 'ADMIN'
+    role: 'GOVERNMENT'
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccessMessage(null);
     try {
-      await axios.post('/api/auth/register', formData);
-      navigate('/login');
+      const response = await axios.post('/api/auth/register', formData);
+      if (response.data.pending) {
+        setSuccessMessage(response.data.message);
+      } else {
+        navigate('/login');
+      }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao criar conta de administrador. Verifique os dados e tente novamente.');
+      setError(formatErrorMessage(err, 'Erro ao criar conta de administrador. Verifique os dados e tente novamente.'));
     } finally {
       setLoading(false);
     }
   };
+
+  if (successMessage) {
+    return (
+      <Box 
+        sx={{ 
+          minHeight: '100vh', 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(rgba(248, 250, 252, 0.9), rgba(248, 250, 252, 0.9)), url("https://i.postimg.cc/SRHyxrRv/Serrinha-Image.png")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          py: 8
+        }}
+      >
+        <Container maxWidth="sm">
+          <Paper 
+            elevation={0} 
+            sx={{ 
+              p: { xs: 4, sm: 6 }, 
+              borderRadius: { xs: 5, sm: 6 }, 
+              border: '1px solid rgba(0,0,0,0.05)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.05)',
+              bgcolor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(10px)',
+              textAlign: 'center'
+            }}
+          >
+            <Typography variant="h4" sx={{ fontWeight: 800, mb: 3, color: 'primary.main' }}>
+              Cadastro Recebido!
+            </Typography>
+            <Alert severity="info" sx={{ mb: 4, borderRadius: 3, textAlign: 'left', py: 2 }}>
+              <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                {successMessage}
+              </Typography>
+            </Alert>
+            <Button 
+              component={Link} 
+              to="/login" 
+              variant="contained"
+              fullWidth
+              sx={{ py: 1.5, borderRadius: 3, fontWeight: 700, textTransform: 'none' }}
+            >
+              Voltar para o Login
+            </Button>
+          </Paper>
+        </Container>
+      </Box>
+    );
+  }
 
   return (
     <Box 
@@ -141,6 +199,7 @@ export default function Register() {
           
           <TextField
             select
+            disabled
             fullWidth
             label="Tipo de Acesso"
             margin="normal"
@@ -155,7 +214,6 @@ export default function Register() {
               sx: { borderRadius: 3 }
             }}
           >
-            <MenuItem value="ADMIN">Administrador Geral</MenuItem>
             <MenuItem value="GOVERNMENT">Zeladoria / Governo</MenuItem>
           </TextField>
 

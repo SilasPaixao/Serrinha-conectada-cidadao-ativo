@@ -4,12 +4,12 @@ import { S3Service } from "../infra/storage/s3.js";
 import { format } from "date-fns";
 
 export const createIssueSchema = z.object({
-  category: z.string(),
-  description: z.string(),
-  latitude: z.number(),
-  longitude: z.number(),
+  category: z.string({ message: "Categoria é obrigatória" }).min(1, "Categoria é obrigatória"),
+  description: z.string({ message: "Descrição é obrigatória" }).min(1, "Descrição é obrigatória"),
+  latitude: z.number({ message: "Latitude é obrigatória" }),
+  longitude: z.number({ message: "Longitude é obrigatória" }),
   address: z.string().optional(),
-  reporterEmail: z.string().email().optional(),
+  reporterEmail: z.string().email("E-mail inválido").optional().or(z.literal("")),
 });
 
 import { MailService } from "../infra/mail/mailService.js";
@@ -20,15 +20,38 @@ const mailService = new MailService();
 export class IssueService {
   private static columnChecked = false;
 
-  private async ensureColumn() {
+  public static async ensureSchema() {
     if (IssueService.columnChecked) return;
     try {
-      console.log("Checking if 'reporterEmail' column exists in 'Issue' table...");
+      console.log("Checking and ensuring database schema...");
+      
+      // Ensure columns in Issue table
       await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "reporterEmail" TEXT;`);
-      console.log("'reporterEmail' column ensured.");
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "address" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "userId" TEXT;`);
+      
+      // Ensure status column in User table
+      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'ACTIVE';`);
+      
+      // Ensure IssueStatusHistory table exists
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "IssueStatusHistory" (
+          "id" TEXT NOT NULL,
+          "issueId" TEXT NOT NULL,
+          "status" TEXT NOT NULL,
+          "comment" TEXT,
+          "changedById" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "IssueStatusHistory_pkey" PRIMARY KEY ("id"),
+          CONSTRAINT "IssueStatusHistory_issueId_fkey" FOREIGN KEY ("issueId") REFERENCES "Issue"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+          CONSTRAINT "IssueStatusHistory_changedById_fkey" FOREIGN KEY ("changedById") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+        );
+      `);
+      
+      console.log("Database schema ensured.");
       IssueService.columnChecked = true;
     } catch (e) {
-      console.warn("Could not ensure reporterEmail column, it might already exist or DB is not ready:", e);
+      console.warn("Could not ensure database schema:", e);
     }
   }
 
@@ -43,7 +66,7 @@ export class IssueService {
   }
 
   async createIssue(data: z.infer<typeof createIssueSchema>, userId: string | null, file?: Express.Multer.File) {
-    await this.ensureColumn();
+    await IssueService.ensureSchema();
     const protocol = this.generateProtocol();
     let imageUrl: string | undefined;
 
@@ -98,6 +121,7 @@ export class IssueService {
   }
 
   async getIssues(filters: any) {
+    await IssueService.ensureSchema();
     const issues = await prisma.issue.findMany({
       where: filters,
       include: {

@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 8080;
+  const PORT = 3000;
 
   app.set('trust proxy', 1);
 
@@ -26,18 +26,24 @@ async function startServer() {
   }));
   app.use(express.json());
 
-  console.log("Checking environment variables...");
+  console.log("Verificando variáveis de ambiente...");
   if (!process.env.DATABASE_URL) {
-    console.error("❌ DATABASE_URL is missing!");
+    console.error("❌ DATABASE_URL está ausente!");
   } else {
-    console.log("✅ DATABASE_URL is present.");
+    console.log("✅ DATABASE_URL está presente.");
   }
 
   if (!process.env.SMTP_USER) {
-    console.warn("⚠️ SMTP_USER is missing! Email features may not work.");
+    console.warn("⚠️ SMTP_USER está ausente! Recursos de e-mail podem não funcionar.");
   } else {
-    console.log(`✅ SMTP_USER is present: ${process.env.SMTP_USER}`);
+    console.log(`✅ SMTP_USER está presente: ${process.env.SMTP_USER}`);
     console.log(`✅ SMTP_HOST: ${process.env.SMTP_HOST}`);
+    console.log(`✅ SMTP_PORT: ${process.env.SMTP_PORT || '587 (padrão)'}`);
+    if (!process.env.SMTP_PASS) {
+      console.error("❌ SMTP_PASS está ausente! E-mails NÃO serão enviados.");
+    } else {
+      console.log("✅ SMTP_PASS está presente.");
+    }
   }
 
   // API Routes
@@ -63,7 +69,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
   });
 }
 

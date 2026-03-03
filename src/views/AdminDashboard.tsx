@@ -61,6 +61,7 @@ import autoTable from 'jspdf-autotable';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { formatErrorMessage } from '../utils/errorUtils';
 
 // Fix Leaflet icon issue using CDN URLs
 const DefaultIcon = L.icon({
@@ -109,7 +110,9 @@ const neighborhoods = [
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [issues, setIssues] = useState<any[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingRequests, setLoadingRequests] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [openImageModal, setOpenImageModal] = useState(false);
@@ -121,6 +124,11 @@ export default function AdminDashboard() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [viewTab, setViewTab] = useState(0);
   
+  // SMTP Test
+  const [openEmailTestDialog, setOpenEmailTestDialog] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [testingEmail, setTestingEmail] = useState(false);
+  
   // Filters
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
@@ -131,25 +139,74 @@ export default function AdminDashboard() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  const currentUser = useMemo(() => {
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
+  }, []);
+
   const fetchIssues = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Fetch all issues to keep stats constant regardless of filters
       const response = await axios.get('/api/admin/issues', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setIssues(response.data);
     } catch (err) {
       console.error('Erro ao buscar relatos', err);
+      alert(formatErrorMessage(err, 'Erro ao buscar relatos'));
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchPendingRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/admin/pending-requests', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPendingRequests(response.data);
+    } catch (err) {
+      console.error('Erro ao buscar solicitações pendentes', err);
+      alert(formatErrorMessage(err, 'Erro ao buscar solicitações pendentes'));
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
   useEffect(() => {
     fetchIssues();
-  }, []); // Fetch only once on mount or when manually refreshed
+    fetchPendingRequests();
+  }, []);
+
+  const handleApproveRequest = async (id: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`/api/admin/approve-request/${id}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchPendingRequests();
+      alert('Solicitação aprovada com sucesso!');
+    } catch (err) {
+      alert(formatErrorMessage(err, 'Erro ao aprovar solicitação'));
+    }
+  };
+
+  const handleRejectRequest = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja rejeitar esta solicitação?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`/api/admin/reject-request/${id}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchPendingRequests();
+      alert('Solicitação rejeitada com sucesso!');
+    } catch (err) {
+      alert(formatErrorMessage(err, 'Erro ao rejeitar solicitação'));
+    }
+  };
 
   const handleUpdateStatus = async () => {
     try {
@@ -164,6 +221,7 @@ export default function AdminDashboard() {
       fetchIssues();
     } catch (err) {
       console.error('Erro ao atualizar status', err);
+      alert(formatErrorMessage(err, 'Erro ao atualizar status'));
     }
   };
 
@@ -180,7 +238,7 @@ export default function AdminDashboard() {
       alert('E-mail enviado com sucesso!');
     } catch (err: any) {
       console.error('Erro ao enviar e-mail', err);
-      alert(err.response?.data?.error || 'Erro ao enviar e-mail');
+      alert(formatErrorMessage(err, 'Erro ao enviar e-mail'));
     } finally {
       setSendingEmail(false);
     }
@@ -196,6 +254,7 @@ export default function AdminDashboard() {
       fetchIssues();
     } catch (err) {
       console.error('Erro ao excluir relato', err);
+      alert(formatErrorMessage(err, 'Erro ao excluir relato'));
     }
   };
 
@@ -307,6 +366,27 @@ export default function AdminDashboard() {
     navigate('/login');
   };
 
+  const handleTestEmail = async () => {
+    if (!testEmail.trim()) return;
+    setTestingEmail(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/admin/test-email', 
+        { email: testEmail },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert(response.data.message);
+      setOpenEmailTestDialog(false);
+    } catch (err: any) {
+      console.error('Erro no teste de e-mail', err);
+      const details = err.response?.data?.details || '';
+      const hint = err.response?.data?.hint || '';
+      alert(`Falha no teste: ${err.response?.data?.error || err.message}\n\nDetalhes: ${details}\n\nDica: ${hint}`);
+    } finally {
+      setTestingEmail(false);
+    }
+  };
+
   return (
     <Box sx={{ py: 2 }}>
       {/* Header */}
@@ -316,6 +396,20 @@ export default function AdminDashboard() {
           <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>Monitoramento e controle de solicitações urbanas.</Typography>
         </Box>
         <Stack direction="row" spacing={1}>
+          {currentUser?.role === 'ADMIN' && (
+            <Button 
+              variant="outlined" 
+              color="primary"
+              startIcon={<Search />} 
+              onClick={() => {
+                setTestEmail(currentUser.email);
+                setOpenEmailTestDialog(true);
+              }}
+              sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 700, px: 3 }}
+            >
+              Testar E-mail
+            </Button>
+          )}
           <Button 
             variant="contained" 
             startIcon={<Refresh />} 
@@ -462,7 +556,7 @@ export default function AdminDashboard() {
       </Paper>
 
       {/* View Switcher */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center', gap: 2 }}>
         <Tabs 
           value={viewTab} 
           onChange={(_, v) => setViewTab(v)} 
@@ -476,6 +570,23 @@ export default function AdminDashboard() {
         >
           <Tab icon={<ListIcon sx={{ mr: 1 }} />} iconPosition="start" label="Lista" />
           <Tab icon={<MapIcon sx={{ mr: 1 }} />} iconPosition="start" label="Mapa" />
+          <Tab 
+            icon={<PendingActions sx={{ mr: 1 }} />} 
+            iconPosition="start" 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                Solicitações
+                {pendingRequests.length > 0 && (
+                  <Chip 
+                    label={pendingRequests.length} 
+                    size="small" 
+                    color="error" 
+                    sx={{ ml: 1, height: 20, minWidth: 20, fontSize: '0.65rem', fontWeight: 900 }} 
+                  />
+                )}
+              </Box>
+            } 
+          />
         </Tabs>
       </Box>
 
@@ -606,18 +717,20 @@ export default function AdminDashboard() {
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Excluir Relato">
-                              <IconButton 
-                                size="small"
-                                onClick={() => {
-                                  setSelectedIssue(issue);
-                                  setOpenDeleteDialog(true);
-                                }}
-                                sx={{ bgcolor: 'rgba(239,68,68,0.05)', color: 'error.main', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
-                              >
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {currentUser?.role === 'ADMIN' && (
+                              <Tooltip title="Excluir Relato">
+                                <IconButton 
+                                  size="small"
+                                  onClick={() => {
+                                    setSelectedIssue(issue);
+                                    setOpenDeleteDialog(true);
+                                  }}
+                                  sx={{ bgcolor: 'rgba(239,68,68,0.05)', color: 'error.main', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -647,7 +760,7 @@ export default function AdminDashboard() {
                 </Box>
               )}
             </Paper>
-          ) : (
+          ) : viewTab === 1 ? (
             <Paper sx={{ borderRadius: 5, overflow: 'hidden', height: '600px', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
               <MapContainer center={[-11.66, -38.96]} zoom={14} style={{ height: '100%', width: '100%' }}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -752,6 +865,73 @@ export default function AdminDashboard() {
                 ))}
               </MapContainer>
             </Paper>
+          ) : (
+            <Paper sx={{ p: 4, borderRadius: 5, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
+              <Typography variant="h5" sx={{ fontWeight: 800, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <PendingActions color="primary" /> Solicitações de Acesso Pendentes
+              </Typography>
+              
+              {loadingRequests ? (
+                <Box sx={{ py: 10, textAlign: 'center' }}>
+                  <CircularProgress />
+                </Box>
+              ) : pendingRequests.length === 0 ? (
+                <Box sx={{ py: 8, textAlign: 'center', bgcolor: 'rgba(0,0,0,0.01)', borderRadius: 4, border: '1px dashed rgba(0,0,0,0.1)' }}>
+                  <CheckCircle sx={{ fontSize: 48, color: 'success.light', mb: 2, opacity: 0.5 }} />
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.secondary' }}>Tudo em dia!</Typography>
+                  <Typography variant="body2" color="text.disabled">Não há novas solicitações de administrador aguardando aprovação.</Typography>
+                </Box>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 800 }}>NOME</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>E-MAIL</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>DATA DO PEDIDO</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800 }}>AÇÕES</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pendingRequests.map((request) => (
+                        <TableRow key={request.id}>
+                          <TableCell sx={{ fontWeight: 700 }}>{request.name}</TableCell>
+                          <TableCell>{request.email}</TableCell>
+                          <TableCell sx={{ color: 'text.secondary' }}>
+                            {format(new Date(request.createdAt), 'dd/MM/yyyy HH:mm')}
+                            <Typography variant="caption" display="block" color="error">
+                              Expira em {15 - Math.floor((new Date().getTime() - new Date(request.createdAt).getTime()) / (1000 * 60 * 60 * 24))} dias
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Stack direction="row" spacing={1} justifyContent="flex-end">
+                              <Button 
+                                variant="contained" 
+                                color="success" 
+                                size="small"
+                                onClick={() => handleApproveRequest(request.id)}
+                                sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
+                              >
+                                Aprovar
+                              </Button>
+                              <Button 
+                                variant="outlined" 
+                                color="error" 
+                                size="small"
+                                onClick={() => handleRejectRequest(request.id)}
+                                sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
+                              >
+                                Rejeitar
+                              </Button>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Paper>
           )}
         </Box>
       </Fade>
@@ -842,7 +1022,7 @@ export default function AdminDashboard() {
                     style={{ width: '100%', height: 'auto', maxHeight: 350, objectFit: 'cover', display: 'block' }} 
                     referrerPolicy="no-referrer"
                     onError={(e: any) => {
-                      e.target.src = 'https://placehold.co/600x400?text=Imagem+não+encontrada';
+                      e.target.src = 'https://placehold.co/600x400?text=Imagem+nao+encontrada';
                     }}
                   />
                   <Box className="overlay" sx={{ 
@@ -1040,6 +1220,45 @@ export default function AdminDashboard() {
             sx={{ borderRadius: 2, fontWeight: 800 }}
           >
             Sim, Excluir
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* SMTP Test Dialog */}
+      <Dialog 
+        open={openEmailTestDialog} 
+        onClose={() => setOpenEmailTestDialog(false)}
+        PaperProps={{ sx: { borderRadius: 5, p: 1, maxWidth: 400 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: 'primary.main' }}>Teste de Configuração SMTP</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Envie um e-mail de teste para verificar se as credenciais do Brevo/SMTP estão funcionando corretamente.
+          </Typography>
+          <TextField
+            fullWidth
+            label="E-mail de Destino"
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            placeholder="seu-email@exemplo.com"
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+          />
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', display: 'block', mb: 1 }}>DICA DE CONFIGURAÇÃO:</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4 }}>
+              Certifique-se de que a variável <strong>SMTP_PASS</strong> no ambiente contém a sua chave de API do Brevo (ou senha SMTP).
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenEmailTestDialog(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleTestEmail}
+            disabled={testingEmail || !testEmail.trim()}
+            sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
+          >
+            {testingEmail ? <CircularProgress size={20} color="inherit" /> : 'Enviar Teste'}
           </Button>
         </DialogActions>
       </Dialog>
