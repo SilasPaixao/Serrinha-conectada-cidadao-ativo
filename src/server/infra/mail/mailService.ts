@@ -1,75 +1,70 @@
-import nodemailer from "nodemailer";
+import axios from "axios";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 export class MailService {
-  private transporter: nodemailer.Transporter;
+  private apiKey: string | undefined;
+  private senderName: string;
+  private senderEmail: string;
 
   constructor() {
-    const host = process.env.SMTP_HOST?.trim();
-    const user = process.env.SMTP_USER?.trim();
-    const pass = process.env.SMTP_PASS?.trim();
-    const port = Number(process.env.SMTP_PORT) || 587;
+    this.apiKey = process.env.BREVO_API_KEY?.trim();
+    this.senderName = process.env.BREVO_SENDER_NAME || 'Serrinha Conectada';
+    this.senderEmail = process.env.BREVO_SENDER_EMAIL || 'silas.paixao873@gmail.com';
 
-    if (!host || !user || !pass) {
-      console.warn("⚠️ Configuração SMTP incompleta. Verifique SMTP_HOST, SMTP_USER e SMTP_PASS.");
+    console.log(`ℹ️ Inicializando MailService (Brevo API): API_KEY=${this.apiKey ? 'Configurada' : 'AUSENTE'}`);
+
+    if (!this.apiKey) {
+      console.warn("⚠️ Configuração Brevo API incompleta. Verifique BREVO_API_KEY.");
     }
-
-    // Debugging (masked)
-    if (user) {
-      const maskedUser = user.length > 4 ? user.substring(0, 2) + "***" + user.substring(user.length - 2) : "***";
-      console.log(`ℹ️ Usando SMTP_USER: ${maskedUser}`);
-    }
-
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: {
-        user,
-        pass,
-      },
-      tls: {
-        // Do not fail on invalid certs
-        rejectUnauthorized: false
-      }
-    });
-
-    // Verify connection on startup - REMOVED to avoid "Too many failed login attempts" with bad credentials
-    // this.verify();
   }
 
   public async verify() {
+    if (!this.apiKey) return false;
     try {
-      await this.transporter.verify();
-      console.log("✅ Conexão SMTP estabelecida com sucesso.");
+      // Brevo doesn't have a simple "verify" endpoint for the key itself that is lightweight, 
+      // but we can try to get account info to verify the key.
+      await axios.get('https://api.brevo.com/v3/account', {
+        headers: { 'api-key': this.apiKey }
+      });
+      console.log("✅ Conexão com API do Brevo verificada com sucesso.");
       return true;
     } catch (error) {
-      console.error("❌ Erro ao conectar ao servidor SMTP:", error);
-      throw error;
+      console.error("❌ Erro ao verificar API do Brevo:", error);
+      return false;
     }
   }
 
   async sendMail(to: string, subject: string, html: string) {
-    const from = process.env.SMTP_FROM || 'silas.paixao873@gmail.com';
-    
-    console.log(`📧 Tentando enviar e-mail para ${to}...`);
+    if (!this.apiKey) {
+      throw new Error("Configuração BREVO_API_KEY ausente no servidor.");
+    }
+
+    console.log(`📧 Tentando enviar e-mail via API Brevo para ${to}...`);
     
     try {
-      const info = await this.transporter.sendMail({
-        from: `"Serrinha Conectada" <${from}>`,
-        to,
+      const response = await axios.post('https://api.brevo.com/v3/smtp/email', {
+        sender: { name: this.senderName, email: this.senderEmail },
+        to: [{ email: to }],
         subject,
-        html,
+        htmlContent: html,
+      }, {
+        headers: {
+          'api-key': this.apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
       });
-      console.log("✅ E-mail enviado! ID: %s", info.messageId);
-      return info;
-    } catch (error) {
-      console.error("❌ Erro ao enviar e-mail para %s:", to, error);
-      // Log more details if available
-      if ((error as any).response) {
-        console.error("Resposta do servidor SMTP:", (error as any).response);
+
+      console.log("✅ E-mail enviado via API! ID: %s", response.data.messageId);
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ Erro ao enviar e-mail via API para %s:", to);
+      if (error.response) {
+        console.error("Resposta da API Brevo:", JSON.stringify(error.response.data, null, 2));
+      } else {
+        console.error(error.message);
       }
       throw error;
     }

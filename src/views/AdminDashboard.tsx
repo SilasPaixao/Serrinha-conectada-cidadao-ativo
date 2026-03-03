@@ -238,7 +238,9 @@ export default function AdminDashboard() {
       alert('E-mail enviado com sucesso!');
     } catch (err: any) {
       console.error('Erro ao enviar e-mail', err);
-      alert(formatErrorMessage(err, 'Erro ao enviar e-mail'));
+      const errorMsg = err.response?.data?.error || err.message;
+      const details = err.response?.data?.details || '';
+      alert(`Erro ao enviar e-mail: ${errorMsg}${details ? `\n\nDetalhes técnicos: ${details}` : ''}`);
     } finally {
       setSendingEmail(false);
     }
@@ -1246,7 +1248,7 @@ export default function AdminDashboard() {
           <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', display: 'block', mb: 1 }}>DICA DE CONFIGURAÇÃO:</Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4 }}>
-              Certifique-se de que a variável <strong>SMTP_PASS</strong> no ambiente contém a sua chave de API do Brevo (ou senha SMTP).
+              Certifique-se de que a variável <strong>BREVO_API_KEY</strong> no ambiente contém a sua chave de API do Brevo (v3).
             </Typography>
           </Box>
         </DialogContent>

@@ -4,8 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url       = env("DATABASE_URL")  // Pooler aqui
-  directUrl = env("DIRECT_URL")    // Direct aqui (migrations)
+  url      = env("DATABASE_URL")
 }
 
 enum UserRole {

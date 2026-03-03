@@ -17,10 +17,12 @@ const loginLimiter = rateLimit({
 });
 
 function handleError(res: Response, error: any, status: number = 400) {
+  console.error("❌ API Error:", error);
   if (error instanceof z.ZodError) {
     return res.status(400).json({ error: error.issues[0].message });
   }
-  res.status(status).json({ error: error.message || "Ocorreu um erro interno" });
+  const message = error.message || "Ocorreu um erro interno";
+  res.status(status).json({ error: message, details: error.stack });
 }
 
 export function setupRoutes(app: Express) {
@@ -117,10 +119,12 @@ export function setupRoutes(app: Express) {
   app.post("/api/admin/issues/:id/send-email", authenticate, authorize(["GOVERNMENT", "ADMIN"]), async (req: AuthRequest, res) => {
     try {
       const { message } = req.body;
+      if (!message) return res.status(400).json({ error: "Mensagem é obrigatória" });
+      
       const result = await issueService.sendManualEmail(req.params.id, message);
       res.json(result);
     } catch (error: any) {
-      handleError(res, error);
+      handleError(res, error, 500);
     }
   });
 
@@ -183,7 +187,7 @@ export function setupRoutes(app: Express) {
     }
   });
 
-  // SMTP Diagnostic Route
+  // Brevo API Diagnostic Route
   app.post("/api/admin/test-email", authenticate, authorize(["ADMIN"]), async (req, res) => {
     try {
       const { email } = req.body;
@@ -194,11 +198,11 @@ export function setupRoutes(app: Express) {
       
       await mailService.sendMail(
         email,
-        "Teste de Configuração SMTP - Serrinha Conectada",
+        "Teste de Configuração Brevo API - Serrinha Conectada",
         `
         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #10b981;">Conexão SMTP OK!</h2>
-          <p>Se você recebeu este e-mail, suas credenciais SMTP estão configuradas corretamente.</p>
+          <h2 style="color: #10b981;">Brevo API OK!</h2>
+          <p>Se você recebeu este e-mail, sua BREVO_API_KEY está configurada corretamente.</p>
           <p><strong>Data do teste:</strong> ${new Date().toLocaleString('pt-BR')}</p>
         </div>
         `
@@ -206,19 +210,17 @@ export function setupRoutes(app: Express) {
       
       res.json({ success: true, message: "E-mail de teste enviado com sucesso!" });
     } catch (error: any) {
-      console.error("SMTP Test Error:", error);
+      console.error("Brevo API Test Error:", error);
       
-      let hint = "Verifique se SMTP_USER e SMTP_PASS estão corretos no ambiente.";
-      if (error.message.includes("535 5.7.0 Invalid credentials")) {
-        hint = "Credenciais inválidas. Se estiver usando Brevo, use a 'Master Password' ou uma 'SMTP Key' válida. Se for Gmail, use uma 'App Password'.";
-      } else if (error.message.includes("Too many failed login attempts")) {
-        hint = "Muitas tentativas falhas. O servidor SMTP bloqueou seu acesso temporariamente. Aguarde alguns minutos antes de tentar novamente com as credenciais corretas.";
-      } else if (error.code === 'ECONNREFUSED') {
-        hint = "Não foi possível conectar ao servidor SMTP. Verifique o SMTP_HOST e SMTP_PORT.";
+      let hint = "Verifique se BREVO_API_KEY está correta no ambiente.";
+      if (error.response && error.response.status === 401) {
+        hint = "Chave de API inválida. Verifique sua BREVO_API_KEY no painel do Brevo.";
+      } else if (error.response && error.response.status === 403) {
+        hint = "Acesso negado. Verifique se sua conta Brevo está ativa e se a chave tem permissões para enviar e-mails.";
       }
 
       res.status(500).json({ 
-        error: "Falha no teste de e-mail", 
+        error: "Falha no teste de e-mail via API", 
         details: error.message,
         hint
       });
