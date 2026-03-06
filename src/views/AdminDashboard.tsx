@@ -51,7 +51,8 @@ import {
   ImageNotSupported,
   Visibility,
   Close,
-  OpenInNew
+  OpenInNew,
+  WhatsApp
 } from '@mui/icons-material';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -121,13 +122,13 @@ export default function AdminDashboard() {
   const [newStatus, setNewStatus] = useState('');
   const [comment, setComment] = useState('');
   const [manualMessage, setManualMessage] = useState('');
-  const [sendingEmail, setSendingEmail] = useState(false);
+  const [sendingNotification, setSendingNotification] = useState(false);
   const [viewTab, setViewTab] = useState(0);
   
-  // SMTP Test
-  const [openEmailTestDialog, setOpenEmailTestDialog] = useState(false);
-  const [testEmail, setTestEmail] = useState('');
-  const [testingEmail, setTestingEmail] = useState(false);
+  // WhatsApp Diagnostics
+  const [whatsAppLogs, setWhatsAppLogs] = useState<any[]>([]);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<any>(null);
+  const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
   
   // Filters
   const [filterStatus, setFilterStatus] = useState('');
@@ -176,9 +177,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchWhatsAppDiagnostics = async () => {
+    setLoadingWhatsApp(true);
+    try {
+      const token = localStorage.getItem('token');
+      const [logsRes, statusRes] = await Promise.all([
+        axios.get('/api/admin/whatsapp/logs', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('/api/admin/whatsapp/status', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setWhatsAppLogs(logsRes.data);
+      setWhatsAppStatus(statusRes.data);
+    } catch (err) {
+      console.error('Erro ao buscar diagnósticos do WhatsApp', err);
+    } finally {
+      setLoadingWhatsApp(false);
+    }
+  };
+
   useEffect(() => {
     fetchIssues();
     fetchPendingRequests();
+    if (currentUser?.role === 'ADMIN') {
+      fetchWhatsAppDiagnostics();
+    }
   }, []);
 
   const handleApproveRequest = async (id: string) => {
@@ -225,24 +246,23 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleSendManualEmail = async () => {
+  const handleSendManualNotification = async () => {
     if (!manualMessage.trim()) return;
-    setSendingEmail(true);
+    setSendingNotification(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/admin/issues/${selectedIssue.id}/send-email`, 
+      await axios.post(`/api/admin/issues/${selectedIssue.id}/send-notification`, 
         { message: manualMessage },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setManualMessage('');
-      alert('E-mail enviado com sucesso!');
+      alert('Notificação enviada com sucesso!');
     } catch (err: any) {
-      console.error('Erro ao enviar e-mail', err);
+      console.error('Erro ao enviar notificação', err);
       const errorMsg = err.response?.data?.error || err.message;
-      const details = err.response?.data?.details || '';
-      alert(`Erro ao enviar e-mail: ${errorMsg}${details ? `\n\nDetalhes técnicos: ${details}` : ''}`);
+      alert(`Erro ao enviar notificação: ${errorMsg}`);
     } finally {
-      setSendingEmail(false);
+      setSendingNotification(false);
     }
   };
 
@@ -368,27 +388,6 @@ export default function AdminDashboard() {
     navigate('/login');
   };
 
-  const handleTestEmail = async () => {
-    if (!testEmail.trim()) return;
-    setTestingEmail(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post('/api/admin/test-email', 
-        { email: testEmail },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      alert(response.data.message);
-      setOpenEmailTestDialog(false);
-    } catch (err: any) {
-      console.error('Erro no teste de e-mail', err);
-      const details = err.response?.data?.details || '';
-      const hint = err.response?.data?.hint || '';
-      alert(`Falha no teste: ${err.response?.data?.error || err.message}\n\nDetalhes: ${details}\n\nDica: ${hint}`);
-    } finally {
-      setTestingEmail(false);
-    }
-  };
-
   return (
     <Box sx={{ py: 2 }}>
       {/* Header */}
@@ -398,20 +397,6 @@ export default function AdminDashboard() {
           <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>Monitoramento e controle de solicitações urbanas.</Typography>
         </Box>
         <Stack direction="row" spacing={1}>
-          {currentUser?.role === 'ADMIN' && (
-            <Button 
-              variant="outlined" 
-              color="primary"
-              startIcon={<Search />} 
-              onClick={() => {
-                setTestEmail(currentUser.email);
-                setOpenEmailTestDialog(true);
-              }}
-              sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 700, px: 3 }}
-            >
-              Testar E-mail
-            </Button>
-          )}
           <Button 
             variant="contained" 
             startIcon={<Refresh />} 
@@ -572,6 +557,9 @@ export default function AdminDashboard() {
         >
           <Tab icon={<ListIcon sx={{ mr: 1 }} />} iconPosition="start" label="Lista" />
           <Tab icon={<MapIcon sx={{ mr: 1 }} />} iconPosition="start" label="Mapa" />
+          {currentUser?.role === 'ADMIN' && (
+            <Tab icon={<WhatsApp sx={{ mr: 1 }} />} iconPosition="start" label="WhatsApp" />
+          )}
           <Tab 
             icon={<PendingActions sx={{ mr: 1 }} />} 
             iconPosition="start" 
@@ -867,6 +855,114 @@ export default function AdminDashboard() {
                 ))}
               </MapContainer>
             </Paper>
+          ) : viewTab === 2 && currentUser?.role === 'ADMIN' ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Paper sx={{ p: 3, borderRadius: 5, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <WhatsApp color="success" /> Status do Serviço WhatsApp
+                  </Typography>
+                  <Button startIcon={<Refresh />} onClick={fetchWhatsAppDiagnostics} disabled={loadingWhatsApp}>
+                    Atualizar Status
+                  </Button>
+                </Box>
+                
+                {whatsAppStatus ? (
+                  <Grid container spacing={3}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Card variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Configuração da API (Evolution)</Typography>
+                        <Stack spacing={1}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="body2">URL da API:</Typography>
+                            <Chip label={whatsAppStatus.config.apiUrl} size="small" color={whatsAppStatus.config.apiUrl === 'Configurado' ? 'success' : 'error'} />
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="body2">Chave da API:</Typography>
+                            <Chip label={whatsAppStatus.config.apiKey} size="small" color={whatsAppStatus.config.apiKey === 'Configurado' ? 'success' : 'error'} />
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="body2">Instância:</Typography>
+                            <Chip label={whatsAppStatus.config.instance} size="small" color={whatsAppStatus.config.instance === 'Configurado' ? 'success' : 'error'} />
+                          </Box>
+                        </Stack>
+                      </Card>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Card variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Status da Fila (BullMQ)</Typography>
+                        <Stack spacing={1}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="body2">Aguardando:</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{whatsAppStatus.queue.waiting}</Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="body2">Ativos:</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{whatsAppStatus.queue.active}</Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="body2">Falhas:</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'error.main' }}>{whatsAppStatus.queue.failed}</Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="body2">Concluídos:</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>{whatsAppStatus.queue.completed}</Typography>
+                          </Box>
+                        </Stack>
+                      </Card>
+                    </Grid>
+                  </Grid>
+                ) : (
+                  <Box sx={{ py: 4, textAlign: 'center' }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                )}
+              </Paper>
+
+              <Paper sx={{ borderRadius: 5, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
+                <Box sx={{ p: 3, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 800 }}>Logs Recentes de Envio</Typography>
+                </Box>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.01)' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700 }}>DATA</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>NÚMERO</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>STATUS</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>TENTATIVAS</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>ERRO</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {whatsAppLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell sx={{ fontSize: '0.75rem' }}>{format(new Date(log.createdAt), 'dd/MM HH:mm:ss')}</TableCell>
+                          <TableCell sx={{ fontSize: '0.75rem' }}>{log.phoneNumber}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={log.status} 
+                              size="small" 
+                              color={log.status === 'sent' ? 'success' : log.status === 'failed' ? 'error' : 'warning'}
+                              sx={{ fontSize: '0.65rem', height: 20 }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontSize: '0.75rem' }}>{log.attempts}</TableCell>
+                          <TableCell sx={{ fontSize: '0.75rem', color: 'error.main', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {log.lastError || '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {whatsAppLogs.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>Nenhum log encontrado.</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            </Box>
           ) : (
             <Paper sx={{ p: 4, borderRadius: 5, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
               <Typography variant="h5" sx={{ fontWeight: 800, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -976,12 +1072,6 @@ export default function AdminDashboard() {
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
-                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>CIDADÃO</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 800 }}>{selectedIssue?.user?.name || 'Anônimo'}</Typography>
-                </Box>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
                   <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>CATEGORIA</Typography>
                   <Typography variant="body1" sx={{ fontWeight: 800 }}>{selectedIssue?.category}</Typography>
                 </Box>
@@ -1050,7 +1140,7 @@ export default function AdminDashboard() {
             )}
 
             <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase' }}>DESCRIÇÃO DO CIDADÃO</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase' }}>DESCRIÇÃO</Typography>
               <Typography variant="body2" sx={{ mt: 1, fontWeight: 500, lineHeight: 1.6 }}>{selectedIssue?.description}</Typography>
             </Box>
 
@@ -1102,10 +1192,10 @@ export default function AdminDashboard() {
             
             <Box sx={{ p: 2, bgcolor: 'rgba(16,185,129,0.03)', borderRadius: 3, border: '1px solid rgba(16,185,129,0.1)' }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'success.main', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Download sx={{ fontSize: 20 }} /> Enviar Mensagem Direta (E-mail)
+                <WhatsApp sx={{ fontSize: 20 }} /> Enviar Mensagem Direta (WhatsApp)
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Use este campo para enviar uma mensagem personalizada ao cidadão. O e-mail cadastrado é: <strong>{selectedIssue?.reporterEmail || 'Não fornecido'}</strong>
+                Use este campo para enviar uma mensagem personalizada ao cidadão via WhatsApp. O número cadastrado é: <strong>{selectedIssue?.whatsapp || 'Não fornecido'}</strong>
               </Typography>
               <TextField
                 fullWidth
@@ -1115,18 +1205,18 @@ export default function AdminDashboard() {
                 value={manualMessage}
                 onChange={(e) => setManualMessage(e.target.value)}
                 placeholder="Escreva aqui sua mensagem direta..."
-                disabled={!selectedIssue?.reporterEmail}
+                disabled={!selectedIssue?.whatsapp}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: 'white' }, mb: 2 }}
               />
               <Button 
                 variant="outlined" 
                 color="success" 
                 fullWidth
-                onClick={handleSendManualEmail}
-                disabled={sendingEmail || !manualMessage.trim() || !selectedIssue?.reporterEmail}
+                onClick={handleSendManualNotification}
+                disabled={sendingNotification || !manualMessage.trim() || !selectedIssue?.whatsapp}
                 sx={{ borderRadius: 3, fontWeight: 700, textTransform: 'none' }}
               >
-                {sendingEmail ? <CircularProgress size={20} /> : 'Enviar E-mail Agora'}
+                {sendingNotification ? <CircularProgress size={20} /> : 'Enviar WhatsApp Agora'}
               </Button>
             </Box>
           </Box>
@@ -1226,44 +1316,6 @@ export default function AdminDashboard() {
         </DialogActions>
       </Dialog>
 
-      {/* SMTP Test Dialog */}
-      <Dialog 
-        open={openEmailTestDialog} 
-        onClose={() => setOpenEmailTestDialog(false)}
-        PaperProps={{ sx: { borderRadius: 5, p: 1, maxWidth: 400 } }}
-      >
-        <DialogTitle sx={{ fontWeight: 900, color: 'primary.main' }}>Teste de Configuração SMTP</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Envie um e-mail de teste para verificar se as credenciais do Brevo/SMTP estão funcionando corretamente.
-          </Typography>
-          <TextField
-            fullWidth
-            label="E-mail de Destino"
-            value={testEmail}
-            onChange={(e) => setTestEmail(e.target.value)}
-            placeholder="seu-email@exemplo.com"
-            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-          />
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', display: 'block', mb: 1 }}>DICA DE CONFIGURAÇÃO:</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4 }}>
-              Certifique-se de que a variável <strong>BREVO_API_KEY</strong> no ambiente contém a sua chave de API do Brevo (v3).
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setOpenEmailTestDialog(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
-          <Button 
-            variant="contained" 
-            onClick={handleTestEmail}
-            disabled={testingEmail || !testEmail.trim()}
-            sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
-          >
-            {testingEmail ? <CircularProgress size={20} color="inherit" /> : 'Enviar Teste'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

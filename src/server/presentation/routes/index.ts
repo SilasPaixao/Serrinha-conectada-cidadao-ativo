@@ -5,6 +5,7 @@ import { IssueService, createIssueSchema } from "../../application/issueService.
 import { authenticate, authorize, AuthRequest } from "../middlewares/auth.js";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
+import prisma from "../../infra/database/prisma.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
 const authService = new AuthService();
@@ -18,6 +19,26 @@ const loginLimiter = rateLimit({
 
 function handleError(res: Response, error: any, status: number = 400) {
   console.error("❌ API Error:", error);
+  
+  // Detailed Prisma error logging
+  if (error.code) {
+    console.error(`Prisma Error Code: ${error.code}`);
+  }
+  if (error.meta) {
+    console.error(`Prisma Error Meta:`, JSON.stringify(error.meta, null, 2));
+  }
+  if (error.message) {
+    console.error(`Error Message: ${error.message}`);
+  }
+  
+  // Attempt to log the full error object for debugging
+  try {
+    const fullError = JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+    console.error("Full Error Details:", fullError);
+  } catch (e) {
+    console.error("Could not stringify error object");
+  }
+
   if (error instanceof z.ZodError) {
     return res.status(400).json({ error: error.issues[0].message });
   }
@@ -116,12 +137,12 @@ export function setupRoutes(app: Express) {
     }
   });
 
-  app.post("/api/admin/issues/:id/send-email", authenticate, authorize(["GOVERNMENT", "ADMIN"]), async (req: AuthRequest, res) => {
+  app.post("/api/admin/issues/:id/send-notification", authenticate, authorize(["GOVERNMENT", "ADMIN"]), async (req: AuthRequest, res) => {
     try {
       const { message } = req.body;
       if (!message) return res.status(400).json({ error: "Mensagem é obrigatória" });
       
-      const result = await issueService.sendManualEmail(req.params.id, message);
+      const result = await issueService.sendManualNotification(req.params.id, message);
       res.json(result);
     } catch (error: any) {
       handleError(res, error, 500);
@@ -165,6 +186,37 @@ export function setupRoutes(app: Express) {
     }
   });
 
+  // WhatsApp Diagnostic Route
+  app.get("/api/admin/whatsapp/logs", authenticate, authorize(["ADMIN"]), async (req, res) => {
+    try {
+      const logs = await prisma.whatsAppLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+      res.json(logs);
+    } catch (error: any) {
+      handleError(res, error, 500);
+    }
+  });
+
+  app.get("/api/admin/whatsapp/status", authenticate, authorize(["ADMIN"]), async (req, res) => {
+    try {
+      const config = {
+        apiUrl: process.env.EVOLUTION_API_URL ? "Configurado" : "Ausente",
+        apiKey: process.env.EVOLUTION_API_KEY ? "Configurado" : "Ausente",
+        instance: process.env.EVOLUTION_INSTANCE ? "Configurado" : "Ausente",
+        redisHost: process.env.REDIS_HOST ? "Configurado" : "Ausente",
+      };
+      
+      const { whatsAppQueue } = await import("../../infra/queue/WhatsAppQueue.js");
+      const counts = await whatsAppQueue.getJobCounts();
+      
+      res.json({ config, queue: counts });
+    } catch (error: any) {
+      handleError(res, error, 500);
+    }
+  });
+
   // Geocoding Proxy
   app.get("/api/geocode/reverse", async (req, res) => {
     try {
@@ -184,46 +236,6 @@ export function setupRoutes(app: Express) {
         console.error("Nominatim Response:", error.response.status, error.response.data);
       }
       res.status(500).json({ error: "Erro ao buscar endereço. Tente novamente mais tarde." });
-    }
-  });
-
-  // Brevo API Diagnostic Route
-  app.post("/api/admin/test-email", authenticate, authorize(["ADMIN"]), async (req, res) => {
-    try {
-      const { email } = req.body;
-      if (!email) return res.status(400).json({ error: "E-mail de teste é obrigatório" });
-      
-      const { MailService } = await import("../../infra/mail/mailService.js");
-      const mailService = new MailService();
-      
-      await mailService.sendMail(
-        email,
-        "Teste de Configuração Brevo API - Serrinha Conectada",
-        `
-        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #10b981;">Brevo API OK!</h2>
-          <p>Se você recebeu este e-mail, sua BREVO_API_KEY está configurada corretamente.</p>
-          <p><strong>Data do teste:</strong> ${new Date().toLocaleString('pt-BR')}</p>
-        </div>
-        `
-      );
-      
-      res.json({ success: true, message: "E-mail de teste enviado com sucesso!" });
-    } catch (error: any) {
-      console.error("Brevo API Test Error:", error);
-      
-      let hint = "Verifique se BREVO_API_KEY está correta no ambiente.";
-      if (error.response && error.response.status === 401) {
-        hint = "Chave de API inválida. Verifique sua BREVO_API_KEY no painel do Brevo.";
-      } else if (error.response && error.response.status === 403) {
-        hint = "Acesso negado. Verifique se sua conta Brevo está ativa e se a chave tem permissões para enviar e-mails.";
-      }
-
-      res.status(500).json({ 
-        error: "Falha no teste de e-mail via API", 
-        details: error.message,
-        hint
-      });
     }
   });
 }

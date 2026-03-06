@@ -9,13 +9,13 @@ export const createIssueSchema = z.object({
   latitude: z.number({ message: "Latitude é obrigatória" }),
   longitude: z.number({ message: "Longitude é obrigatória" }),
   address: z.string().optional(),
-  reporterEmail: z.string().email("E-mail inválido").optional().or(z.literal("")),
+  whatsapp: z.string().optional().or(z.literal("")),
 });
 
-import { MailService } from "../infra/mail/mailService.js";
+import { WhatsAppService } from "./services/WhatsAppService.js";
 
 const s3Service = new S3Service();
-const mailService = new MailService();
+const whatsappService = new WhatsAppService();
 
 export class IssueService {
   private static columnChecked = false;
@@ -25,15 +25,61 @@ export class IssueService {
     try {
       console.log("Checking and ensuring database schema...");
       
+      // Ensure Issue table exists
+      console.log("Ensuring Issue table...");
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Issue" (
+          "id" TEXT NOT NULL,
+          "protocol" TEXT NOT NULL,
+          "category" TEXT NOT NULL,
+          "description" TEXT NOT NULL,
+          "latitude" DOUBLE PRECISION NOT NULL,
+          "longitude" DOUBLE PRECISION NOT NULL,
+          "address" TEXT,
+          "reporterEmail" TEXT,
+          "whatsapp" TEXT,
+          "imageUrl" TEXT,
+          "status" TEXT NOT NULL DEFAULT 'PENDING',
+          "userId" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "Issue_pkey" PRIMARY KEY ("id")
+        );
+      `);
+      await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Issue_protocol_key" ON "Issue"("protocol");`);
+
+      // Ensure User table exists
+      console.log("Ensuring User table...");
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "User" (
+          "id" TEXT NOT NULL,
+          "email" TEXT NOT NULL,
+          "password" TEXT NOT NULL,
+          "name" TEXT NOT NULL,
+          "role" TEXT NOT NULL DEFAULT 'CITIZEN',
+          "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+          "whatsapp" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+        );
+      `);
+      await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");`);
+
       // Ensure columns in Issue table
+      console.log("Ensuring Issue columns...");
       await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "reporterEmail" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "whatsapp" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "address" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "userId" TEXT;`);
       
       // Ensure status column in User table
+      console.log("Ensuring User columns...");
       await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'ACTIVE';`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "whatsapp" TEXT;`);
       
       // Ensure IssueStatusHistory table exists
+      console.log("Ensuring IssueStatusHistory table...");
       await prisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "IssueStatusHistory" (
           "id" TEXT NOT NULL,
@@ -49,9 +95,29 @@ export class IssueService {
       `);
       
       console.log("Database schema ensured.");
+      
+      // Ensure WhatsAppLog table exists
+      console.log("Ensuring WhatsAppLog table...");
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "WhatsAppLog" (
+          "id" TEXT NOT NULL,
+          "issueId" TEXT,
+          "phoneNumber" TEXT NOT NULL,
+          "message" TEXT NOT NULL,
+          "status" TEXT NOT NULL,
+          "lastError" TEXT,
+          "attempts" INTEGER NOT NULL DEFAULT 0,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "sentAt" TIMESTAMP(3),
+          CONSTRAINT "WhatsAppLog_pkey" PRIMARY KEY ("id")
+        );
+      `);
+
       IssueService.columnChecked = true;
-    } catch (e) {
-      console.warn("Could not ensure database schema:", e);
+    } catch (e: any) {
+      console.error("❌ Could not ensure database schema:", e);
+      if (e.code) console.error("Prisma Error Code:", e.code);
+      if (e.meta) console.error("Prisma Error Meta:", JSON.stringify(e.meta));
     }
   }
 
@@ -74,12 +140,12 @@ export class IssueService {
       imageUrl = await s3Service.uploadFile(file);
     }
 
-    const { reporterEmail, ...issueData } = data;
+    const { whatsapp, ...issueData } = data;
 
     const issue = await prisma.issue.create({
       data: {
         ...issueData,
-        reporterEmail,
+        whatsapp,
         protocol,
         userId,
         imageUrl,
@@ -87,31 +153,9 @@ export class IssueService {
       },
     });
 
-    if (reporterEmail) {
-      try {
-        await mailService.sendMail(
-          reporterEmail,
-          `Protocolo de Relato: ${protocol}`,
-          `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #10b981;">Serrinha Conectada</h2>
-            <p>Olá,</p>
-            <p>Seu relato foi registrado com sucesso em nossa plataforma.</p>
-            <div style="background-color: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <p style="margin: 0; font-size: 14px; color: #6b7280;">Número do Protocolo:</p>
-              <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: bold; color: #111827;">${protocol}</p>
-            </div>
-            <p><strong>Categoria:</strong> ${issueData.category}</p>
-            <p><strong>Descrição:</strong> ${issueData.description}</p>
-            <p>Você pode acompanhar o status do seu relato em nosso site utilizando o número do protocolo acima.</p>
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #9ca3af;">Este é um e-mail automático, por favor não responda.</p>
-          </div>
-          `
-        );
-      } catch (error) {
-        console.error("Failed to send protocol email:", error);
-      }
+    if (whatsapp) {
+      whatsappService.notifyNewIssue(whatsapp, protocol, issueData.category, issueData.description, issue.id)
+        .catch(error => console.error("Failed to enqueue WhatsApp notification:", error));
     }
 
     return {
@@ -152,6 +196,11 @@ export class IssueService {
       REJECTED: "Rejeitado",
     };
 
+    const existingIssue = await prisma.issue.findUnique({ where: { id: issueId } });
+    if (!existingIssue) {
+      throw new Error("Relato não encontrado.");
+    }
+
     return prisma.$transaction(async (tx) => {
       const issue = await tx.issue.update({
         where: { id: issueId },
@@ -167,30 +216,9 @@ export class IssueService {
         },
       });
 
-      if (issue.reporterEmail) {
-        try {
-          await mailService.sendMail(
-            issue.reporterEmail,
-            `Atualização de Status: ${issue.protocol}`,
-            `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-              <h2 style="color: #10b981;">Serrinha Conectada</h2>
-              <p>Olá,</p>
-              <p>O status do seu relato <strong>${issue.protocol}</strong> foi atualizado.</p>
-              <div style="background-color: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <p style="margin: 0; font-size: 14px; color: #6b7280;">Novo Status:</p>
-                <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: bold; color: #111827;">${statusMap[status] || status}</p>
-                ${comment ? `<p style="margin: 10px 0 0 0; font-size: 14px; color: #4b5563;"><strong>Comentário:</strong> ${comment}</p>` : ""}
-              </div>
-              <p>Você pode continuar acompanhando o progresso em nosso site.</p>
-              <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-              <p style="font-size: 12px; color: #9ca3af;">Este é um e-mail automático, por favor não responda.</p>
-            </div>
-            `
-          );
-        } catch (error) {
-          console.error("Failed to send status update email:", error);
-        }
+      if (issue.whatsapp) {
+        whatsappService.notifyStatusUpdate(issue.whatsapp, issue.protocol, status, comment, issue.id)
+          .catch(error => console.error("Failed to enqueue WhatsApp status update:", error));
       }
 
       return issue;
@@ -219,37 +247,27 @@ export class IssueService {
   }
 
   async deleteIssue(id: string) {
+    const existingIssue = await prisma.issue.findUnique({ where: { id } });
+    if (!existingIssue) return { success: true };
+    
     return prisma.issue.delete({
       where: { id },
     });
   }
 
-  async sendManualEmail(issueId: string, message: string) {
+  async sendManualNotification(issueId: string, message: string) {
     const issue = await prisma.issue.findUnique({
       where: { id: issueId }
     });
 
-    if (!issue || !issue.reporterEmail) {
-      throw new Error("Relato não encontrado ou cidadão não forneceu e-mail.");
+    if (!issue) {
+      throw new Error("Relato não encontrado.");
     }
 
-    await mailService.sendMail(
-      issue.reporterEmail,
-      `Mensagem da Prefeitura - Protocolo ${issue.protocol}`,
-      `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-        <h2 style="color: #10b981;">Serrinha Conectada</h2>
-        <p>Olá,</p>
-        <p>A equipe de gestão da Prefeitura enviou uma mensagem sobre o seu relato <strong>${issue.protocol}</strong>:</p>
-        <div style="background-color: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
-          <p style="margin: 0; font-size: 16px; color: #111827; line-height: 1.6;">${message}</p>
-        </div>
-        <p>Você pode acompanhar o status do seu relato em nosso site.</p>
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #9ca3af;">Este é um e-mail enviado manualmente por um gestor através da plataforma Serrinha Conectada.</p>
-      </div>
-      `
-    );
+    if (issue.whatsapp) {
+      whatsappService.sendManualMessage(issue.whatsapp, issue.protocol, message, issue.id)
+        .catch(error => console.error("Failed to enqueue manual WhatsApp message:", error));
+    }
 
     return { success: true };
   }

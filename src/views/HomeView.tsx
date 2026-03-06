@@ -1,12 +1,31 @@
-import { Typography, Box, Grid, Card, CardContent, Button, Stack, Avatar } from '@mui/material';
-import { AddLocation, Search, Info, CheckCircleOutline, TrendingUp, People } from '@mui/icons-material';
+import { Typography, Box, Grid, Card, CardContent, Button, Stack, Avatar, useMediaQuery, useTheme, IconButton } from '@mui/material';
+import { AddLocation, Search, Info, CheckCircleOutline, TrendingUp, People, ArrowBackIosNew, ArrowForwardIos } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useState } from 'react';
 
 const MotionBox = motion.create(Box);
 const MotionGrid = motion.create(Grid);
 
 export default function HomeView() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [activeStep, setActiveStep] = useState(0);
+
+  const steps = [
+    { icon: <AddLocation />, title: '1. Relate', desc: 'Tire uma foto e descreva o problema encontrado.' },
+    { icon: <Search />, title: '2. Protocolo', desc: 'Receba um número único para acompanhar sua demanda.' },
+    { icon: <CheckCircleOutline />, title: '3. Resolução', desc: 'A prefeitura analisa, executa e informa a conclusão.' }
+  ];
+
+  const handleNext = () => {
+    setActiveStep((prev) => (prev + 1) % steps.length);
+  };
+
+  const handleBack = () => {
+    setActiveStep((prev) => (prev - 1 + steps.length) % steps.length);
+  };
+
   return (
     <Box>
       {/* Hero Section */}
@@ -18,7 +37,7 @@ export default function HomeView() {
           py: { xs: 8, md: 12 }, 
           px: { xs: 3, md: 6 },
           textAlign: 'center', 
-          background: 'linear-gradient(135deg, rgba(0, 74, 141, 0.9) 0%, rgba(0, 45, 90, 0.95) 100%), url("https://i.postimg.cc/SRHyxrRv/Serrinha-Image.png")',
+          background: 'linear-gradient(135deg, rgba(0, 74, 141, 0.6) 0%, rgba(0, 45, 90, 0.7) 100%), url("https://i.postimg.cc/SRHyxrRv/Serrinha-Image.png")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           color: 'white', 
@@ -26,16 +45,48 @@ export default function HomeView() {
           mb: { xs: 4, md: 8 },
           position: 'relative',
           overflow: 'hidden',
-          boxShadow: '0 20px 60px rgba(0, 74, 141, 0.3)',
+          boxShadow: '0 20px 60px rgba(0, 74, 141, 0.2)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
         <Box sx={{ position: 'relative', zIndex: 2 }}>
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
           >
+            <Box 
+              sx={{ 
+                display: 'inline-flex',
+                alignItems: 'center',
+                px: 2.5,
+                py: 0.8,
+                borderRadius: 100,
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backdropFilter: 'blur(10px)',
+                mb: 4,
+                gap: 1.5,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              }}
+            >
+              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'secondary.main' }} />
+              <Typography 
+                variant="overline" 
+                sx={{ 
+                  fontWeight: 800, 
+                  letterSpacing: '2px', 
+                  color: 'secondary.main',
+                  display: 'block',
+                  lineHeight: 1,
+                  fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                  textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                }}
+              >
+                O TRABALHO CONTINUA, A MUDANÇA ACONTECE
+              </Typography>
+              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'secondary.main' }} />
+            </Box>
             <Typography 
               variant="h2" 
               gutterBottom 
@@ -44,7 +95,8 @@ export default function HomeView() {
                 fontSize: { xs: '2.25rem', sm: '3rem', md: '4rem' },
                 letterSpacing: '-1.5px',
                 mb: 2,
-                lineHeight: 1.1
+                lineHeight: 1.1,
+                textShadow: '0 4px 12px rgba(0,0,0,0.4)'
               }}
             >
               Cidadão Ativo
@@ -210,26 +262,74 @@ export default function HomeView() {
         sx={{ bgcolor: 'white', p: { xs: 4, md: 8 }, borderRadius: 6, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', scrollMarginTop: 100 }}
       >
         <Typography variant="h4" align="center" sx={{ fontWeight: 800, mb: 6 }}>Como funciona?</Typography>
-        <Grid container spacing={6}>
-          {[
-            { icon: <AddLocation />, title: '1. Relate', desc: 'Tire uma foto e descreva o problema encontrado.' },
-            { icon: <Search />, title: '2. Protocolo', desc: 'Receba um número único para acompanhar sua demanda.' },
-            { icon: <CheckCircleOutline />, title: '3. Resolução', desc: 'A prefeitura analisa, executa e informa a conclusão.' }
-          ].map((item, i) => (
-            <Grid size={{ xs: 12, md: 4 }} key={i} sx={{ textAlign: 'center' }}>
-              <motion.div
-                whileHover={{ scale: 1.1 }}
-                transition={{ type: "spring", stiffness: 400, damping: 10 }}
-              >
-                <Box sx={{ display: 'inline-flex', p: 2, borderRadius: '50%', bgcolor: 'primary.main', color: 'white', mb: 3, boxShadow: '0 8px 16px rgba(0,74,141,0.2)' }}>
-                  {item.icon}
-                </Box>
-              </motion.div>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>{item.title}</Typography>
-              <Typography color="text.secondary" sx={{ maxWidth: 250, mx: 'auto' }}>{item.desc}</Typography>
-            </Grid>
-          ))}
-        </Grid>
+        
+        {isMobile ? (
+          <Box sx={{ position: 'relative', px: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeStep}
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -50 }}
+                  transition={{ duration: 0.3 }}
+                  style={{ textAlign: 'center', width: '100%' }}
+                >
+                  <Box sx={{ display: 'inline-flex', p: 2, borderRadius: '50%', bgcolor: 'primary.main', color: 'white', mb: 3, boxShadow: '0 8px 16px rgba(0,74,141,0.2)' }}>
+                    {steps[activeStep].icon}
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>{steps[activeStep].title}</Typography>
+                  <Typography color="text.secondary" sx={{ maxWidth: 250, mx: 'auto' }}>{steps[activeStep].desc}</Typography>
+                </motion.div>
+              </AnimatePresence>
+            </Box>
+            
+            <IconButton 
+              onClick={handleBack}
+              sx={{ position: 'absolute', left: -10, top: '50%', transform: 'translateY(-50%)', bgcolor: 'rgba(0,0,0,0.03)' }}
+            >
+              <ArrowBackIosNew fontSize="small" />
+            </IconButton>
+            <IconButton 
+              onClick={handleNext}
+              sx={{ position: 'absolute', right: -10, top: '50%', transform: 'translateY(-50%)', bgcolor: 'rgba(0,0,0,0.03)' }}
+            >
+              <ArrowForwardIos fontSize="small" />
+            </IconButton>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mt: 4 }}>
+              {steps.map((_, i) => (
+                <Box 
+                  key={i}
+                  sx={{ 
+                    width: 8, 
+                    height: 8, 
+                    borderRadius: '50%', 
+                    bgcolor: i === activeStep ? 'primary.main' : 'rgba(0,0,0,0.1)',
+                    transition: 'all 0.3s ease'
+                  }} 
+                />
+              ))}
+            </Box>
+          </Box>
+        ) : (
+          <Grid container spacing={6}>
+            {steps.map((item, i) => (
+              <Grid size={{ xs: 12, md: 4 }} key={i} sx={{ textAlign: 'center' }}>
+                <motion.div
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                >
+                  <Box sx={{ display: 'inline-flex', p: 2, borderRadius: '50%', bgcolor: 'primary.main', color: 'white', mb: 3, boxShadow: '0 8px 16px rgba(0,74,141,0.2)' }}>
+                    {item.icon}
+                  </Box>
+                </motion.div>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>{item.title}</Typography>
+                <Typography color="text.secondary" sx={{ maxWidth: 250, mx: 'auto' }}>{item.desc}</Typography>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </MotionBox>
     </Box>
   );

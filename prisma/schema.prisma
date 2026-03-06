@@ -34,6 +34,7 @@ model User {
   name          String
   role          UserRole  @default(CITIZEN)
   status        UserStatus @default(ACTIVE)
+  whatsapp      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   issues        Issue[]
@@ -49,6 +50,7 @@ model Issue {
   longitude     Float
   address       String?
   reporterEmail String?
+  whatsapp      String?
   imageUrl      String?
   status        IssueStatus          @default(PENDING)
   userId        String?
@@ -56,6 +58,18 @@ model Issue {
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
   history       IssueStatusHistory[]
+}
+
+model WhatsAppLog {
+  id          String    @id @default(uuid())
+  issueId     String?
+  phoneNumber String
+  message     String
+  status      String    // pending, sent, failed
+  lastError   String?
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
 }
 
 model IssueStatusHistory {

@@ -20,9 +20,9 @@ export const registerSchema = z.object({
   }).default("CITIZEN"),
 });
 
-import { MailService } from "../infra/mail/mailService.js";
+import { WhatsAppService } from "./services/WhatsAppService.js";
 
-const mailService = new MailService();
+const whatsappService = new WhatsAppService();
 
 export class AuthService {
   async register(data: z.infer<typeof registerSchema>) {
@@ -93,59 +93,38 @@ export class AuthService {
   }
 
   async approveAdmin(userId: string) {
+    const userExists = await prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      throw new Error("Usuário não encontrado.");
+    }
+
     const user = await prisma.user.update({
       where: { id: userId },
       data: { status: "ACTIVE" },
     });
 
-    try {
-      await mailService.sendMail(
-        user.email,
-        "Cadastro Aprovado - Serrinha Conectada",
-        `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #10b981;">Serrinha Conectada</h2>
-          <p>Olá <strong>${user.name}</strong>,</p>
-          <p>Seu cadastro como gestor foi <strong>aprovado</strong> com sucesso!</p>
-          <p>Agora você já pode acessar a área administrativa da plataforma utilizando seu e-mail e senha cadastrados.</p>
-          <div style="margin: 30px 0;">
-            <a href="${process.env.APP_URL || '#'}/login" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Painel</a>
-          </div>
-          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #9ca3af;">Este é um e-mail automático, por favor não responda.</p>
-        </div>
-        `
-      );
-    } catch (error) {
-      console.error("Erro ao enviar e-mail de aprovação:", error);
+    if (user.whatsapp) {
+      whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-APROVADO", `Olá ${user.name}, seu cadastro como gestor na plataforma Serrinha Conectada foi APROVADO! Você já pode acessar o painel.`, "auth-approval")
+        .catch(error => console.error("Erro ao enviar WhatsApp de aprovação:", error));
     }
 
     return user;
   }
 
   async rejectAdmin(userId: string) {
+    const userExists = await prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      throw new Error("Usuário não encontrado.");
+    }
+
     const user = await prisma.user.update({
       where: { id: userId },
       data: { status: "REJECTED" },
     });
 
-    try {
-      await mailService.sendMail(
-        user.email,
-        "Cadastro Rejeitado - Serrinha Conectada",
-        `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #ef4444;">Serrinha Conectada</h2>
-          <p>Olá <strong>${user.name}</strong>,</p>
-          <p>Lamentamos informar que seu pedido de acesso como gestor foi <strong>rejeitado</strong> pela administração.</p>
-          <p>Caso acredite que isso seja um erro, entre em contato com o suporte técnico da prefeitura.</p>
-          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #9ca3af;">Este é um e-mail automático, por favor não responda.</p>
-        </div>
-        `
-      );
-    } catch (error) {
-      console.error("Erro ao enviar e-mail de rejeição:", error);
+    if (user.whatsapp) {
+      whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-REJEITADO", `Olá ${user.name}, lamentamos informar que seu pedido de acesso como gestor na plataforma Serrinha Conectada foi REJEITADO pela administração.`, "auth-rejection")
+        .catch(error => console.error("Erro ao enviar WhatsApp de rejeição:", error));
     }
 
     return user;

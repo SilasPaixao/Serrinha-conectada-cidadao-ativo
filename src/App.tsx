@@ -20,7 +20,9 @@ import {
   ListItem,
   ListItemButton,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import { 
   AccountCircle, 
@@ -50,6 +52,8 @@ export default function App() {
   });
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
 
   const handleDrawerToggle = () => {
@@ -108,43 +112,34 @@ export default function App() {
           </ListItem>
         ))}
       </List>
-      <Divider sx={{ my: 3 }} />
-      {!user ? (
-        <Button 
-          fullWidth 
-          variant="contained" 
-          component={Link} 
-          to="/login" 
-          onClick={handleDrawerToggle}
-          sx={{ borderRadius: 3, py: 1.5, fontWeight: 700 }}
-        >
-          Entrar
-        </Button>
-      ) : (
-        <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ px: 2, mb: 1, display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>
-            Minha Conta
-          </Typography>
-          <List>
-            { (user.role === 'ADMIN' || user.role === 'GOVERNMENT') && (
+      {user && (
+        <>
+          <Divider sx={{ my: 3 }} />
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ px: 2, mb: 1, display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>
+              Minha Conta
+            </Typography>
+            <List>
+              { (user.role === 'ADMIN' || user.role === 'GOVERNMENT') && !isMobile && (
+                <ListItem disablePadding>
+                  <ListItemButton 
+                    onClick={() => { handleDrawerToggle(); navigate('/admin-government'); }}
+                    sx={{ borderRadius: 3 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 40 }}><Dashboard fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Painel Gestor" primaryTypographyProps={{ fontWeight: 600 }} />
+                  </ListItemButton>
+                </ListItem>
+              )}
               <ListItem disablePadding>
-                <ListItemButton 
-                  onClick={() => { handleDrawerToggle(); navigate('/admin-government'); }}
-                  sx={{ borderRadius: 3 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 40 }}><Dashboard fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Painel Gestor" primaryTypographyProps={{ fontWeight: 600 }} />
+                <ListItemButton onClick={handleLogout} sx={{ borderRadius: 3, color: 'error.main' }}>
+                  <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}><Settings fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Sair" primaryTypographyProps={{ fontWeight: 600 }} />
                 </ListItemButton>
               </ListItem>
-            )}
-            <ListItem disablePadding>
-              <ListItemButton onClick={handleLogout} sx={{ borderRadius: 3, color: 'error.main' }}>
-                <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}><Settings fontSize="small" /></ListItemIcon>
-                <ListItemText primary="Sair" primaryTypographyProps={{ fontWeight: 600 }} />
-              </ListItemButton>
-            </ListItem>
-          </List>
-        </Box>
+            </List>
+          </Box>
+        </>
       )}
     </Box>
   );
@@ -157,39 +152,44 @@ export default function App() {
         minHeight: '100vh',
         backgroundColor: '#f8fafc',
         backgroundImage: `
-          radial-gradient(at 0% 0%, rgba(0, 74, 141, 0.03) 0px, transparent 50%),
-          radial-gradient(at 100% 100%, rgba(245, 130, 32, 0.03) 0px, transparent 50%)
+          radial-gradient(at 0% 0%, rgba(0, 74, 141, 0.08) 0px, transparent 50%),
+          radial-gradient(at 100% 100%, rgba(245, 130, 32, 0.08) 0px, transparent 50%),
+          linear-gradient(rgba(248, 250, 252, 0.95), rgba(248, 250, 252, 0.95)),
+          url("https://i.postimg.cc/9fvzmCCf/brasao-serrinha-bahia-logo-png-seeklogo-432520.png")
         `,
+        backgroundSize: 'auto, auto, auto, 500px',
+        backgroundRepeat: 'no-repeat, no-repeat, no-repeat, repeat',
+        backgroundAttachment: 'fixed',
         position: 'relative',
         '&::before': {
           content: '""',
           position: 'fixed',
           top: '5%',
-          left: '-5%',
-          width: '400px',
-          height: '400px',
-          backgroundImage: 'url("https://i.postimg.cc/CLVhXc3X/logo.jpg")',
+          left: '-12%',
+          width: '700px',
+          height: '700px',
+          backgroundImage: 'url("https://i.postimg.cc/9fvzmCCf/brasao-serrinha-bahia-logo-png-seeklogo-432520.png")',
           backgroundSize: 'contain',
           backgroundRepeat: 'no-repeat',
-          opacity: 0.03,
+          opacity: 0.012,
           zIndex: 0,
           pointerEvents: 'none',
-          filter: 'grayscale(100%)',
+          filter: 'grayscale(100%) brightness(1.3)',
         },
         '&::after': {
           content: '""',
           position: 'fixed',
           bottom: '5%',
-          right: '-5%',
-          width: '300px',
-          height: '300px',
-          backgroundImage: 'url("https://i.postimg.cc/CLVhXc3X/logo.jpg")',
+          right: '-12%',
+          width: '600px',
+          height: '600px',
+          backgroundImage: 'url("https://i.postimg.cc/9fvzmCCf/brasao-serrinha-bahia-logo-png-seeklogo-432520.png")',
           backgroundSize: 'contain',
           backgroundRepeat: 'no-repeat',
-          opacity: 0.03,
+          opacity: 0.012,
           zIndex: 0,
           pointerEvents: 'none',
-          filter: 'grayscale(100%)',
+          filter: 'grayscale(100%) brightness(1.3)',
         }
       }}
     >

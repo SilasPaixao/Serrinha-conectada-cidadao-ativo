@@ -18,7 +18,8 @@ import {
   useTheme,
   useMediaQuery,
   FormControlLabel,
-  Checkbox
+  Checkbox,
+  Stack
 } from '@mui/material';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import { CloudUpload, LocationOn, Description, CheckCircle, ArrowBack, ArrowForward, MyLocation } from '@mui/icons-material';
@@ -82,7 +83,7 @@ export default function IssueWizard() {
     street: '',
     neighborhood: '',
     referencePoint: '',
-    reporterEmail: '',
+    whatsapp: '',
     useMapLocation: true
   });
   const [image, setImage] = useState<File | null>(null);
@@ -171,7 +172,7 @@ export default function IssueWizard() {
         latitude: position.lat,
         longitude: position.lng,
         address: fullAddress || formData.address,
-        reporterEmail: formData.reporterEmail || undefined
+        whatsapp: formData.whatsapp || undefined
       }));
       if (image) data.append('image', image);
 
@@ -378,21 +379,25 @@ export default function IssueWizard() {
       case 4:
         return (
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Deseja receber atualizações por e-mail?</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Deseja receber atualizações?</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Informe seu e-mail para receber o número do protocolo e ser avisado quando houver mudanças no status do seu relato.
+              Informe seu WhatsApp para receber o número do protocolo e ser avisado quando houver mudanças no status do seu relato.
             </Typography>
-            <TextField
-              label="Seu E-mail (opcional)"
-              type="email"
-              fullWidth
-              placeholder="exemplo@email.com"
-              value={formData.reporterEmail}
-              onChange={(e) => setFormData({ ...formData, reporterEmail: e.target.value })}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-            />
+            
+            <Stack spacing={3}>
+              <TextField
+                label="Seu WhatsApp (opcional)"
+                fullWidth
+                placeholder="75999999999"
+                value={formData.whatsapp}
+                onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+                helperText="Apenas números com DDD. Ex: 75988887777"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+              />
+            </Stack>
+
             <Alert severity="info" sx={{ mt: 3, borderRadius: 3 }}>
-              O e-mail é opcional, mas recomendado para que você não perca o número do protocolo.
+              As informações de contato são opcionais, mas recomendadas para que você possa acompanhar seu relato.
             </Alert>
           </Box>
         );
