@@ -9,6 +9,7 @@ export default function Register() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    whatsapp: '',
     password: '',
     role: 'GOVERNMENT'
   });
@@ -166,6 +167,25 @@ export default function Register() {
               startAdornment: (
                 <InputAdornment position="start">
                   <Email color="action" fontSize="small" />
+                </InputAdornment>
+              ),
+              sx: { borderRadius: 3 }
+            }}
+          />
+          <TextField
+            fullWidth
+            label="WhatsApp"
+            margin="normal"
+            placeholder="75999999999"
+            value={formData.whatsapp}
+            onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+            helperText="Apenas números com DDD"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <IconButton size="small" sx={{ p: 0, mr: 1 }}>
+                    <span style={{ fontSize: '1.2rem' }}>📱</span>
+                  </IconButton>
                 </InputAdornment>
               ),
               sx: { borderRadius: 3 }

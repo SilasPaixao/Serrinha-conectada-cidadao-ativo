@@ -15,6 +15,7 @@ export const registerSchema = z.object({
   email: z.string().email("E-mail inválido"),
   password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres"),
   name: z.string().min(2, "O nome deve ter pelo menos 2 caracteres"),
+  whatsapp: z.string().optional().or(z.literal("")),
   role: z.enum(["CITIZEN", "GOVERNMENT"], {
     message: "Tipo de acesso inválido",
   }).default("CITIZEN"),
@@ -47,6 +48,10 @@ export class AuthService {
     });
 
     if (status === "PENDING") {
+      if (user.whatsapp) {
+        whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-PENDENTE", `Olá ${user.name}, seu pedido de acesso como gestor na plataforma Serrinha Conectada foi recebido e está aguardando aprovação da administração. Você receberá uma notificação assim que for aprovado.`, "auth-pending")
+          .catch(error => console.error("Erro ao enviar WhatsApp de cadastro pendente:", error));
+      }
       return {
         pending: true,
         message: "Seu cadastro foi registrado com sucesso. Ele ainda não possui permissão de administrador. Seu pedido ficará aguardando aprovação de um administrador já existente. Somente após aprovação ele poderá acessar a área interna.",
