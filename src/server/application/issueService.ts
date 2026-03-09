@@ -250,6 +250,16 @@ export class IssueService {
     const existingIssue = await prisma.issue.findUnique({ where: { id } });
     if (!existingIssue) return { success: true };
     
+    // Delete related history first
+    await prisma.issueStatusHistory.deleteMany({
+      where: { issueId: id }
+    });
+
+    // Delete related WhatsApp logs if any (optional but good for cleanup)
+    await prisma.whatsAppLog.deleteMany({
+      where: { issueId: id }
+    });
+    
     return prisma.issue.delete({
       where: { id },
     });
