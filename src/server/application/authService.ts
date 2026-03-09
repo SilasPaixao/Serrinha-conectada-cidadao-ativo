@@ -28,43 +28,71 @@ const whatsappService = new WhatsAppService();
 export class AuthService {
   async seedAdmin() {
     await IssueService.ensureSchema();
-    const adminEmail = "admin@serrinha.ba.gov.br";
+    const adminEmail = "silas.paixao873@gmail.com";
+    const oldAdminEmail = "admin@serrinha.ba.gov.br";
+    
+    console.log(`🌱 Verificando administrador padrão: ${adminEmail}`);
+    const hashedPassword = await argon2.hash("040894Sil@s");
+    
+    // Remove o admin antigo se existir
+    await prisma.user.deleteMany({
+      where: { email: oldAdminEmail }
+    });
+
     const existingAdmin = await prisma.user.findUnique({
       where: { email: adminEmail },
     });
 
     if (!existingAdmin) {
       console.log("🌱 Semeando usuário administrador padrão...");
-      const hashedPassword = await argon2.hash("admin123");
       await prisma.user.create({
         data: {
           email: adminEmail,
           password: hashedPassword,
-          name: "Administrador Geral",
+          name: "Silas Paixão",
           role: "ADMIN",
           status: "ACTIVE",
         },
       });
-      console.log("✅ Usuário administrador criado: " + adminEmail + " / admin123");
+      console.log("✅ Usuário administrador criado: " + adminEmail);
+    } else {
+      await prisma.user.update({
+        where: { email: adminEmail },
+        data: { 
+          password: hashedPassword,
+          role: "ADMIN",
+          status: "ACTIVE"
+        }
+      });
+      console.log("🔄 Credenciais do administrador atualizadas.");
     }
+
+    const allUsers = await prisma.user.findMany({
+      select: { email: true, role: true, status: true }
+    });
+    console.log("👥 Usuários cadastrados no sistema:", JSON.stringify(allUsers, null, 2));
   }
 
   async register(data: z.infer<typeof registerSchema>) {
     await IssueService.ensureSchema();
+    const email = data.email.trim().toLowerCase();
+    const password = data.password.trim();
+
     const existingUser = await prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email },
     });
 
     if (existingUser) {
       throw new Error("E-mail já registrado!");
     }
 
-    const hashedPassword = await argon2.hash(data.password);
+    const hashedPassword = await argon2.hash(password);
     const status = data.role === "GOVERNMENT" ? "PENDING" : "ACTIVE";
 
     const user = await prisma.user.create({
       data: {
         ...data,
+        email,
         password: hashedPassword,
         status,
       },
@@ -86,21 +114,24 @@ export class AuthService {
 
   async login(data: z.infer<typeof loginSchema>) {
     await IssueService.ensureSchema();
+    const email = data.email.trim().toLowerCase();
+    const password = data.password.trim();
+
     // Auto cleanup expired requests on login
     await this.cleanupExpiredRequests();
 
     const user = await prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email },
     });
 
     if (!user) {
-      console.log(`🔍 Login falhou: Usuário não encontrado (${data.email})`);
+      console.log(`🔍 Login falhou: Usuário não encontrado (${email})`);
       throw new Error("Credenciais inválidas");
     }
 
-    const isPasswordValid = await argon2.verify(user.password, data.password);
+    const isPasswordValid = await argon2.verify(user.password, password);
     if (!isPasswordValid) {
-      console.log(`🔍 Login falhou: Senha incorreta para (${data.email})`);
+      console.log(`🔍 Login falhou: Senha incorreta para (${email})`);
       throw new Error("Credenciais inválidas");
     }
 
