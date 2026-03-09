@@ -26,6 +26,29 @@ import { WhatsAppService } from "./services/WhatsAppService.js";
 const whatsappService = new WhatsAppService();
 
 export class AuthService {
+  async seedAdmin() {
+    await IssueService.ensureSchema();
+    const adminEmail = "admin@serrinha.ba.gov.br";
+    const existingAdmin = await prisma.user.findUnique({
+      where: { email: adminEmail },
+    });
+
+    if (!existingAdmin) {
+      console.log("🌱 Semeando usuário administrador padrão...");
+      const hashedPassword = await argon2.hash("admin123");
+      await prisma.user.create({
+        data: {
+          email: adminEmail,
+          password: hashedPassword,
+          name: "Administrador Geral",
+          role: "ADMIN",
+          status: "ACTIVE",
+        },
+      });
+      console.log("✅ Usuário administrador criado: " + adminEmail + " / admin123");
+    }
+  }
+
   async register(data: z.infer<typeof registerSchema>) {
     await IssueService.ensureSchema();
     const existingUser = await prisma.user.findUnique({
@@ -70,7 +93,14 @@ export class AuthService {
       where: { email: data.email },
     });
 
-    if (!user || !(await argon2.verify(user.password, data.password))) {
+    if (!user) {
+      console.log(`🔍 Login falhou: Usuário não encontrado (${data.email})`);
+      throw new Error("Credenciais inválidas");
+    }
+
+    const isPasswordValid = await argon2.verify(user.password, data.password);
+    if (!isPasswordValid) {
+      console.log(`🔍 Login falhou: Senha incorreta para (${data.email})`);
       throw new Error("Credenciais inválidas");
     }
 
