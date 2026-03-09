@@ -4,8 +4,33 @@ import prisma from '../database/prisma.js';
 const evolutionProvider = new EvolutionWhatsAppProvider();
 const WORKER_INTERVAL_MS = 5000; // Verifica a cada 5 segundos
 const SEND_DELAY_MS = 4000; // Espera 4 segundos entre envios para evitar bloqueios
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // Limpeza diária (24h)
 
 let isRunning = false;
+
+/**
+ * Remove notificações com 2 anos ou mais para liberar espaço.
+ */
+async function cleanupOldNotifications() {
+  try {
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+    const deleted = await prisma.whatsAppLog.deleteMany({
+      where: {
+        createdAt: {
+          lt: twoYearsAgo
+        }
+      }
+    });
+
+    if (deleted.count > 0) {
+      console.log(`🧹 Cleanup: ${deleted.count} notificações de WhatsApp antigas (2+ anos) foram removidas.`);
+    }
+  } catch (error: any) {
+    console.error('🔥 Erro ao limpar notificações antigas:', error.message);
+  }
+}
 
 /**
  * Worker que processa mensagens de WhatsApp pendentes no banco de dados.
@@ -80,9 +105,21 @@ export async function startWhatsAppWorker() {
   
   console.log("🚀 Iniciando WhatsApp DB Worker (Intervalo: 5s, Delay entre envios: 4s)");
 
+  // Executa limpeza inicial
+  await cleanupOldNotifications();
+  
+  let lastCleanup = Date.now();
+
   // Loop infinito
   while (isRunning) {
     await processNextMessage();
+    
+    // Verifica se é hora de limpar novamente (a cada 24h)
+    if (Date.now() - lastCleanup > CLEANUP_INTERVAL_MS) {
+      await cleanupOldNotifications();
+      lastCleanup = Date.now();
+    }
+
     // Pequena pausa se não houver mensagens para não fritar o CPU/DB
     await new Promise(resolve => setTimeout(resolve, WORKER_INTERVAL_MS));
   }

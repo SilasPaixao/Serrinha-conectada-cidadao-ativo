@@ -122,15 +122,16 @@ export class AuthService {
       throw new Error("Usuário não encontrado.");
     }
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { status: "REJECTED" },
-    });
-
-    if (user.whatsapp) {
-      whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-REJEITADO", `Olá ${user.name}, lamentamos informar que seu pedido de acesso como gestor na plataforma *Prefeitura de Serrinha - Cidadão ativo!* foi REJEITADO pela administração.`, "auth-rejection")
+    // Envia notificação antes de deletar
+    if (userExists.whatsapp) {
+      whatsappService.sendManualMessage(userExists.whatsapp, "CADASTRO-REJEITADO", `Olá ${userExists.name}, lamentamos informar que seu pedido de acesso como gestor na plataforma *Prefeitura de Serrinha - Cidadão ativo!* foi REJEITADO pela administração.`, "auth-rejection")
         .catch(error => console.error("Erro ao enviar WhatsApp de rejeição:", error));
     }
+
+    // Deleta imediatamente conforme solicitado
+    const user = await prisma.user.delete({
+      where: { id: userId },
+    });
 
     return user;
   }
