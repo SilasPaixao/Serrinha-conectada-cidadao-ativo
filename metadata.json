@@ -1,5 +1,5 @@
 {
-  "name": "Serrinha Conectada",
-  "description": "Plataforma de gestão de zeladoria urbana e participação cidadã com notificações por e-mail.",
+  "name": "Prefeitura de Serrinha - Cidadão ativo!",
+  "description": "Plataforma de gestão de zeladoria urbana e participação cidadã com notificações por e-mail e WhatsApp.",
   "requestFramePermissions": ["geolocation", "camera"]
 }

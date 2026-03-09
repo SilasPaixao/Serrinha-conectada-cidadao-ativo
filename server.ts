@@ -46,35 +46,18 @@ async function startServer() {
     }
   }
 
-  // Evolution API & Redis Checks
-  if (!process.env.EVOLUTION_API_URL || !process.env.EVOLUTION_API_KEY) {
-    console.warn("⚠️ Evolution API (WhatsApp) não configurada.");
+  // Evolution API Checks
+  if (!process.env.EVOLUTION_API_URL || !process.env.EVOLUTION_API_KEY || !process.env.EVOLUTION_INSTANCE) {
+    console.warn("⚠️ Evolution API (WhatsApp) não configurada corretamente (URL, KEY ou INSTANCE ausente).");
   } else {
     console.log("✅ Evolution API configurada.");
   }
 
-  if (!process.env.REDIS_HOST) {
-    console.warn("⚠️ REDIS_HOST não configurado. Usando 127.0.0.1 por padrão.");
-  } else if (process.env.REDIS_HOST === 'redis') {
-    console.log("ℹ️ REDIS_HOST definido como 'redis'. O sistema tentará usar 127.0.0.1 se houver falha de resolução.");
-  }
-  
-  const { redisConfig } = await import("./src/server/infra/queue/redisConfig.js");
-  const isMock = redisConfig.constructor.name === 'Redis' || redisConfig.constructor.name === 'MockRedis' || (redisConfig as any)._isMock;
-  
-  if (isMock) {
-    console.log("ℹ️ Redis está usando uma conexão MOCK (em memória).");
-  } else {
-    const hasPassword = !!process.env.REDIS_PASSWORD;
-    const redisHost = (redisConfig as any).host;
-    const redisPort = (redisConfig as any).port;
-    console.log(`✅ Redis configurado em ${redisHost}:${redisPort} (${hasPassword ? 'Com senha' : 'Sem senha'}).`);
-  }
-
-  // Start WhatsApp Worker
+  // Start WhatsApp Worker (Database driven)
   try {
-    await import("./src/server/infra/queue/WhatsAppWorker.js");
-    console.log("🚀 WhatsApp Worker inicializado.");
+    const { startWhatsAppWorker } = await import("./src/server/infra/queue/WhatsAppWorker.js");
+    startWhatsAppWorker();
+    console.log("🚀 WhatsApp Worker (DB) inicializado.");
   } catch (e) {
     console.error("❌ Falha ao inicializar WhatsApp Worker:", e);
   }

@@ -90,7 +90,7 @@ export default function App() {
             S
           </Box>
           <Typography variant="h6" sx={{ fontWeight: 800, color: 'primary.main' }}>
-            Serrinha
+            Prefeitura de Serrinha
           </Typography>
         </Box>
         <IconButton onClick={handleDrawerToggle}>
@@ -237,7 +237,7 @@ export default function App() {
                   display: { xs: 'none', sm: 'block' }
                 }}
               >
-                Serrinha Conectada
+                Prefeitura de Serrinha - Cidadão ativo!
               </Typography>
               <Typography 
                 variant="h6" 

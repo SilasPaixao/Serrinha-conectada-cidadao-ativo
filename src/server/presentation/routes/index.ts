@@ -205,11 +205,14 @@ export function setupRoutes(app: Express) {
         apiUrl: process.env.EVOLUTION_API_URL ? "Configurado" : "Ausente",
         apiKey: process.env.EVOLUTION_API_KEY ? "Configurado" : "Ausente",
         instance: process.env.EVOLUTION_INSTANCE ? "Configurado" : "Ausente",
-        redisHost: process.env.REDIS_HOST ? "Configurado" : "Ausente",
       };
       
-      const { whatsAppQueue } = await import("../../infra/queue/WhatsAppQueue.js");
-      const counts = await whatsAppQueue.getJobCounts();
+      const counts = {
+        pending: await prisma.whatsAppLog.count({ where: { status: 'pending' } }),
+        processing: await prisma.whatsAppLog.count({ where: { status: 'processing' } }),
+        sent: await prisma.whatsAppLog.count({ where: { status: 'sent' } }),
+        failed: await prisma.whatsAppLog.count({ where: { status: 'failed' } }),
+      };
       
       res.json({ config, queue: counts });
     } catch (error: any) {

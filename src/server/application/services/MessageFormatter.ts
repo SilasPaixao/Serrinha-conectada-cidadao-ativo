@@ -1,6 +1,6 @@
 export class MessageFormatter {
   static formatNewIssue(protocol: string, category: string, description: string): string {
-    return `*Serrinha Conectada*\n\n` +
+    return `*Prefeitura de Serrinha - Cidadão ativo!*\n\n` +
       `Olá! Seu relato foi registrado com sucesso.\n\n` +
       `*Protocolo:* ${protocol}\n` +
       `*Categoria:* ${category}\n` +
@@ -18,7 +18,7 @@ export class MessageFormatter {
 
     const statusLabel = statusMap[status] || status;
 
-    let message = `*Serrinha Conectada*\n\n` +
+    let message = `*Prefeitura de Serrinha - Cidadão ativo!*\n\n` +
       `O status do seu relato *${protocol}* foi atualizado.\n\n` +
       `*Novo Status:* ${statusLabel}\n`;
 
@@ -32,7 +32,7 @@ export class MessageFormatter {
   }
 
   static formatManualMessage(protocol: string, message: string): string {
-    return `*Serrinha Conectada*\n\n` +
+    return `*Prefeitura de Serrinha - Cidadão ativo!*\n\n` +
       `A equipe de gestão da Prefeitura enviou uma mensagem sobre o seu relato *${protocol}*:\n\n` +
       `"${message}"\n\n` +
       `Você pode acompanhar o status do seu relato em nosso site.`;

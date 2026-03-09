@@ -1,5 +1,4 @@
-import { Queue } from 'bullmq';
-import { redisConfig } from './redisConfig.js';
+import prisma from '../database/prisma.js';
 
 export interface WhatsAppJobData {
   issueId?: string;
@@ -7,19 +6,25 @@ export interface WhatsAppJobData {
   message: string;
 }
 
-export const whatsAppQueue = new Queue<WhatsAppJobData>('whatsapp-notifications', {
-  connection: redisConfig,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 1000,
-    },
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-});
-
+/**
+ * Enfileira uma mensagem de WhatsApp no banco de dados para envio posterior pelo worker.
+ */
 export async function addWhatsAppJob(data: WhatsAppJobData) {
-  await whatsAppQueue.add('send-whatsapp', data);
+  console.log(`📝 Enfileirando mensagem de WhatsApp para ${data.phoneNumber} no banco de dados...`);
+  try {
+    const log = await prisma.whatsAppLog.create({
+      data: {
+        issueId: data.issueId,
+        phoneNumber: data.phoneNumber,
+        message: data.message,
+        status: 'pending',
+        attempts: 0,
+      },
+    });
+    console.log(`✅ Mensagem enfileirada no banco (ID: ${log.id})`);
+    return log;
+  } catch (error: any) {
+    console.error(`❌ Falha ao enfileirar mensagem no banco: ${error.message}`);
+    throw error;
+  }
 }

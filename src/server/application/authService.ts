@@ -49,7 +49,7 @@ export class AuthService {
 
     if (status === "PENDING") {
       if (user.whatsapp) {
-        whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-PENDENTE", `Olá ${user.name}, seu pedido de acesso como gestor na plataforma Serrinha Conectada foi recebido e está aguardando aprovação da administração. Você receberá uma notificação assim que for aprovado.`, "auth-pending")
+        whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-PENDENTE", `Olá ${user.name}, seu pedido de acesso como gestor na plataforma *Prefeitura de Serrinha - Cidadão ativo!* foi recebido e está aguardando aprovação da administração. Você receberá uma notificação assim que for aprovado.`, "auth-pending")
           .catch(error => console.error("Erro ao enviar WhatsApp de cadastro pendente:", error));
       }
       return {
@@ -109,7 +109,7 @@ export class AuthService {
     });
 
     if (user.whatsapp) {
-      whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-APROVADO", `Olá ${user.name}, seu cadastro como gestor na plataforma Serrinha Conectada foi APROVADO! Você já pode acessar o painel.`, "auth-approval")
+      whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-APROVADO", `Olá ${user.name}, seu cadastro como gestor na plataforma *Prefeitura de Serrinha - Cidadão ativo!* foi APROVADO! Você já pode acessar o painel.`, "auth-approval")
         .catch(error => console.error("Erro ao enviar WhatsApp de aprovação:", error));
     }
 
@@ -128,7 +128,7 @@ export class AuthService {
     });
 
     if (user.whatsapp) {
-      whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-REJEITADO", `Olá ${user.name}, lamentamos informar que seu pedido de acesso como gestor na plataforma Serrinha Conectada foi REJEITADO pela administração.`, "auth-rejection")
+      whatsappService.sendManualMessage(user.whatsapp, "CADASTRO-REJEITADO", `Olá ${user.name}, lamentamos informar que seu pedido de acesso como gestor na plataforma *Prefeitura de Serrinha - Cidadão ativo!* foi REJEITADO pela administração.`, "auth-rejection")
         .catch(error => console.error("Erro ao enviar WhatsApp de rejeição:", error));
     }
 

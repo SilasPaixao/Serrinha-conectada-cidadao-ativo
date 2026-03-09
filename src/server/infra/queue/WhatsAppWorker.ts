@@ -1,90 +1,97 @@
-import { Worker, Job } from 'bullmq';
 import { EvolutionWhatsAppProvider } from '../whatsapp/EvolutionWhatsAppProvider.js';
 import prisma from '../database/prisma.js';
-import { redisConfig } from './redisConfig.js';
 
 const evolutionProvider = new EvolutionWhatsAppProvider();
+const WORKER_INTERVAL_MS = 5000; // Verifica a cada 5 segundos
+const SEND_DELAY_MS = 4000; // Espera 4 segundos entre envios para evitar bloqueios
 
-export const whatsAppWorker = new Worker(
-  'whatsapp-notifications',
-  async (job: Job) => {
-    const { issueId, phoneNumber, message } = job.data;
-    console.log(`👷 Processing WhatsApp job for ${phoneNumber} (Issue: ${issueId || 'N/A'})`);
+let isRunning = false;
 
-    let log;
+/**
+ * Worker que processa mensagens de WhatsApp pendentes no banco de dados.
+ */
+async function processNextMessage() {
+  try {
+    // Busca a próxima mensagem pendente
+    // Usamos uma transação ou um update atômico para evitar que múltiplos workers peguem a mesma mensagem
+    // (Embora aqui provavelmente só tenhamos uma instância rodando)
+    const nextMessage = await prisma.whatsAppLog.findFirst({
+      where: { status: 'pending' },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!nextMessage) {
+      return;
+    }
+
+    console.log(`👷 Processando mensagem para ${nextMessage.phoneNumber} (ID: ${nextMessage.id})`);
+
+    // Marca como processando
+    await prisma.whatsAppLog.update({
+      where: { id: nextMessage.id },
+      data: { status: 'processing' },
+    });
+
     try {
-      // Create log entry as pending
-      log = await prisma.whatsAppLog.create({
+      // Envia via Evolution API
+      await evolutionProvider.sendText({
+        number: nextMessage.phoneNumber,
+        text: nextMessage.message,
+      });
+
+      // Sucesso
+      await prisma.whatsAppLog.update({
+        where: { id: nextMessage.id },
         data: {
-          issueId,
-          phoneNumber,
-          message,
-          status: 'pending',
-          attempts: job.attemptsMade + 1,
+          status: 'sent',
+          sentAt: new Date(),
+          attempts: nextMessage.attempts + 1,
         },
       });
-    } catch (dbError: any) {
-      console.error(`❌ Failed to create WhatsApp log in DB: ${dbError.message}`);
-      // Continue anyway, we still want to try sending the message
-    }
-
-    try {
-      await evolutionProvider.sendText({
-        number: phoneNumber,
-        text: message,
-      });
-
-      // Update log as sent
-      if (log) {
-        await prisma.whatsAppLog.update({
-          where: { id: log.id },
-          data: {
-            status: 'sent',
-            sentAt: new Date(),
-          },
-        });
-      }
-      console.log(`✅ WhatsApp sent successfully to ${phoneNumber}`);
+      console.log(`✅ WhatsApp enviado com sucesso para ${nextMessage.phoneNumber}`);
     } catch (error: any) {
-      console.error(`❌ WhatsApp send error for ${phoneNumber}:`, error.message);
+      console.error(`❌ Erro ao enviar WhatsApp para ${nextMessage.phoneNumber}:`, error.message);
       
-      // Update log as failed
-      if (log) {
-        await prisma.whatsAppLog.update({
-          where: { id: log.id },
-          data: {
-            status: 'failed',
-            lastError: error.message || 'Unknown error',
-            attempts: job.attemptsMade + 1,
-          },
-        });
-      }
-
-      throw error; // Rethrow to let BullMQ handle retries
+      // Falha
+      await prisma.whatsAppLog.update({
+        where: { id: nextMessage.id },
+        data: {
+          status: 'failed',
+          lastError: error.message || 'Unknown error',
+          attempts: nextMessage.attempts + 1,
+        },
+      });
     }
-  },
-  {
-    connection: redisConfig,
-    limiter: {
-      max: 1,
-      duration: 4000,
-    },
+
+    // Espera o delay configurado antes de permitir a próxima execução
+    await new Promise(resolve => setTimeout(resolve, SEND_DELAY_MS));
+
+  } catch (error: any) {
+    console.error('🔥 Erro no loop do WhatsApp Worker:', error.message);
   }
-);
+}
 
-whatsAppWorker.on('active', (job) => {
-  console.log(`👷 WhatsApp job ${job.id} is now active`);
-});
+/**
+ * Inicia o loop infinito do worker.
+ */
+export async function startWhatsAppWorker() {
+  if (isRunning) return;
+  isRunning = true;
+  
+  console.log("🚀 Iniciando WhatsApp DB Worker (Intervalo: 5s, Delay entre envios: 4s)");
 
-whatsAppWorker.on('completed', (job) => {
-  console.log(`✅ WhatsApp job ${job.id} completed successfully`);
-});
+  // Loop infinito
+  while (isRunning) {
+    await processNextMessage();
+    // Pequena pausa se não houver mensagens para não fritar o CPU/DB
+    await new Promise(resolve => setTimeout(resolve, WORKER_INTERVAL_MS));
+  }
+}
 
-whatsAppWorker.on('failed', (job, err) => {
-  console.error(`❌ WhatsApp job ${job?.id} failed: ${err.message}`);
-  if (err.stack) console.error(err.stack);
-});
-
-whatsAppWorker.on('error', (err) => {
-  console.error('🔥 WhatsApp Worker Error:', err);
-});
+/**
+ * Para o worker.
+ */
+export function stopWhatsAppWorker() {
+  isRunning = false;
+  console.log("🛑 Parando WhatsApp DB Worker...");
+}

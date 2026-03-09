@@ -106,7 +106,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
           </Box>
           <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-1px' }}>Entrar</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Acesse o painel do Serrinha Conectada
+            Acesse o painel do Prefeitura de Serrinha - Cidadão ativo!
           </Typography>
         </Box>
 

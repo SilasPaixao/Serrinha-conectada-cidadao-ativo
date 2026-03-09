@@ -350,7 +350,7 @@ export default function AdminDashboard() {
     const url = window.URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `relatos-serrinha-${statusFilter || 'geral'}-${format(new Date(), 'yyyyMMdd')}.xlsx`;
+    anchor.download = `relatos-prefeitura-serrinha-${statusFilter || 'geral'}-${format(new Date(), 'yyyyMMdd')}.xlsx`;
     anchor.click();
   };
 
@@ -358,7 +358,7 @@ export default function AdminDashboard() {
     const dataToExport = statusFilter ? issues.filter(i => i.status === statusFilter) : filteredIssues;
     const doc = new jsPDF() as any;
     doc.setFontSize(18);
-    doc.text('Relatório de Zeladoria Urbana - Serrinha Conectada', 14, 20);
+    doc.text('Relatório de Zeladoria Urbana - Prefeitura de Serrinha - Cidadão ativo!', 14, 20);
     doc.setFontSize(12);
     doc.text(`Filtro: ${statusFilter ? statusMap[statusFilter].label : 'Geral'}`, 14, 30);
     doc.text(`Data de Emissão: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 37);
@@ -379,7 +379,7 @@ export default function AdminDashboard() {
       headStyles: { fillColor: [0, 74, 141] }
     });
 
-    doc.save(`relatos-serrinha-${statusFilter || 'geral'}-${format(new Date(), 'yyyyMMdd')}.pdf`);
+    doc.save(`relatos-prefeitura-serrinha-${statusFilter || 'geral'}-${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
   const handleLogout = () => {

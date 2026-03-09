@@ -29,7 +29,7 @@ describe('WhatsApp Integration Tests', () => {
   describe('Message Formatting', () => {
     it('should format new issue message correctly', () => {
       const msg = MessageFormatter.formatNewIssue('SC-123', 'Lixo', 'Lixo na rua');
-      expect(msg).toContain('*Serrinha Conectada*');
+      expect(msg).toContain('*Prefeitura de Serrinha - Cidadão ativo!*');
       expect(msg).toContain('*Protocolo:* SC-123');
       expect(msg).toContain('*Categoria:* Lixo');
     });
