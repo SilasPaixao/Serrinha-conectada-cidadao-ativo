@@ -9,7 +9,14 @@ export const createIssueSchema = z.object({
   latitude: z.number({ message: "Latitude é obrigatória" }),
   longitude: z.number({ message: "Longitude é obrigatória" }),
   address: z.string().optional(),
-  whatsapp: z.string().optional().or(z.literal("")),
+  whatsapp: z.string().optional().refine(val => !val || /^\d{10,15}$/.test(val.replace(/\D/g, '')), {
+    message: "WhatsApp deve conter apenas números com DDD (10-11 dígitos)"
+  }),
+  poleId: z.string().optional().or(z.literal("")),
+  isNearPole: z.boolean().optional(),
+  poleAddress: z.string().optional(),
+  poleReference: z.string().optional(),
+  poleImageUrl: z.string().optional(),
 });
 
 import { WhatsAppService } from "./services/WhatsAppService.js";
@@ -78,6 +85,29 @@ export class IssueService {
       await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'ACTIVE';`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "whatsapp" TEXT;`);
       
+      // Ensure Pole table exists
+      console.log("Ensuring Pole table...");
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Pole" (
+          "id" TEXT NOT NULL,
+          "address" TEXT NOT NULL,
+          "reference" TEXT NOT NULL,
+          "imageUrl" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "Pole_pkey" PRIMARY KEY ("id")
+        );
+      `);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Pole" ADD COLUMN IF NOT EXISTS "neighborhood" TEXT;`);
+
+      // Ensure new columns in Issue table
+      console.log("Ensuring new Issue columns for Poles...");
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "poleId" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "isNearPole" BOOLEAN;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "poleAddress" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "poleReference" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Issue" ADD COLUMN IF NOT EXISTS "poleImageUrl" TEXT;`);
+
       // Ensure IssueStatusHistory table exists
       console.log("Ensuring IssueStatusHistory table...");
       await prisma.$executeRawUnsafe(`
@@ -140,7 +170,7 @@ export class IssueService {
       imageUrl = await s3Service.uploadFile(file);
     }
 
-    const { whatsapp, ...issueData } = data;
+    const { whatsapp, poleId, isNearPole, poleAddress, poleReference, poleImageUrl, ...issueData } = data;
 
     const issue = await prisma.issue.create({
       data: {
@@ -150,6 +180,11 @@ export class IssueService {
         userId,
         imageUrl,
         status: "PENDING",
+        poleId: poleId || null,
+        isNearPole,
+        poleAddress,
+        poleReference,
+        poleImageUrl,
       },
     });
 

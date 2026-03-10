@@ -176,9 +176,15 @@ export default function Register() {
             fullWidth
             label="WhatsApp"
             margin="normal"
+            type="tel"
             placeholder="75999999999"
             value={formData.whatsapp}
-            onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, '');
+              if (val.length <= 11) {
+                setFormData({ ...formData, whatsapp: val });
+              }
+            }}
             helperText="Apenas números com DDD"
             InputProps={{
               startAdornment: (

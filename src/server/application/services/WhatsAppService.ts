@@ -6,7 +6,9 @@ export class WhatsAppService {
   async notifyNewIssue(whatsapp: string, protocol: string, category: string, description: string, issueId: string) {
     const normalized = normalizeWhatsAppNumber(whatsapp);
     if (!normalized) {
-      console.warn(`⚠️ WhatsApp normalization failed for: ${whatsapp}`);
+      if (whatsapp) {
+        console.warn(`⚠️ WhatsApp normalization failed for: ${whatsapp}`);
+      }
       return;
     }
 
@@ -21,7 +23,9 @@ export class WhatsAppService {
   async notifyStatusUpdate(whatsapp: string, protocol: string, status: string, comment: string | undefined, issueId: string) {
     const normalized = normalizeWhatsAppNumber(whatsapp);
     if (!normalized) {
-      console.warn(`⚠️ WhatsApp normalization failed for: ${whatsapp}`);
+      if (whatsapp) {
+        console.warn(`⚠️ WhatsApp normalization failed for: ${whatsapp}`);
+      }
       return;
     }
 
@@ -36,7 +40,9 @@ export class WhatsAppService {
   async sendManualMessage(whatsapp: string, protocol: string, messageText: string, issueId: string) {
     const normalized = normalizeWhatsAppNumber(whatsapp);
     if (!normalized) {
-      console.warn(`⚠️ WhatsApp normalization failed for: ${whatsapp}`);
+      if (whatsapp) {
+        console.warn(`⚠️ WhatsApp normalization failed for: ${whatsapp}`);
+      }
       return;
     }
 

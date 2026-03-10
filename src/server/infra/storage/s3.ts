@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import path from "path";
 import crypto from "crypto";
@@ -17,16 +17,18 @@ const s3Client = new S3Client({
 });
 
 export class S3Service {
-  private bucket = process.env.S3_BUCKET || "serrinha-uploads";
+  private defaultBucket = process.env.S3_BUCKET || "serrinha-uploads";
   private publicBaseUrl = process.env.S3_PUBLIC_BASE_URL;
 
-  async uploadFile(file: Express.Multer.File): Promise<string> {
+  async uploadFile(file: Express.Multer.File, options?: { bucket?: string, prefix?: string }): Promise<string> {
+    const bucket = options?.bucket || this.defaultBucket;
+    const prefix = options?.prefix || "issues";
     const fileExtension = path.extname(file.originalname);
     const fileName = `${crypto.randomUUID()}${fileExtension}`;
-    const key = `issues/${fileName}`;
+    const key = `${prefix}/${fileName}`;
 
     const command = new PutObjectCommand({
-      Bucket: this.bucket,
+      Bucket: bucket,
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
@@ -36,7 +38,7 @@ export class S3Service {
     return key;
   }
 
-  async getFileUrl(key: string | null | undefined): Promise<string | null> {
+  async getFileUrl(key: string | null | undefined, bucket?: string): Promise<string | null> {
     if (!key) return null;
     
     // If it's already a full URL, return it (compatibility)
@@ -44,7 +46,7 @@ export class S3Service {
 
     try {
       const command = new GetObjectCommand({
-        Bucket: this.bucket,
+        Bucket: bucket || this.defaultBucket,
         Key: key,
       });
 
@@ -56,6 +58,18 @@ export class S3Service {
         return `${this.publicBaseUrl}/${key}`;
       }
       return key;
+    }
+  }
+
+  async deleteFile(key: string, bucket?: string): Promise<void> {
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: bucket || this.defaultBucket,
+        Key: key,
+      });
+      await s3Client.send(command);
+    } catch (error) {
+      console.error("Error deleting file from S3:", error);
     }
   }
 }

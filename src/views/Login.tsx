@@ -11,6 +11,8 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,16 +29,23 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
-      const response = await axios.post('/api/auth/login', { email, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      onLogin(response.data.user);
-      const user = response.data.user;
-      if (user.role === 'ADMIN' || user.role === 'GOVERNMENT') {
-        navigate('/admin-government');
+      if (isForgotPassword) {
+        const response = await axios.post('/api/auth/forgot-password', { email });
+        setSuccess(response.data.message);
+        // Don't switch back automatically, let the user read the message
       } else {
-        navigate('/');
+        const response = await axios.post('/api/auth/login', { email, password });
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        onLogin(response.data.user);
+        const user = response.data.user;
+        if (user.role === 'ADMIN' || user.role === 'GOVERNMENT') {
+          navigate('/admin-government');
+        } else {
+          navigate('/');
+        }
       }
     } catch (err: any) {
       if (err.response && err.response.data && err.response.data.error) {
@@ -49,6 +58,12 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleForgotPassword = () => {
+    setIsForgotPassword(!isForgotPassword);
+    setError(null);
+    setSuccess(null);
   };
 
   return (
@@ -104,15 +119,25 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
           >
             <Typography variant="h4" sx={{ color: 'white', fontWeight: 900 }}>S</Typography>
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-1px' }}>Entrar</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-1px' }}>
+            {isForgotPassword ? 'Recuperar Senha' : 'Entrar'}
+          </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Acesse o painel do Prefeitura de Serrinha - Cidadão ativo!
+            {isForgotPassword 
+              ? 'Informe seu e-mail de administrador para receber sua senha.' 
+              : 'Acesse o painel do Prefeitura de Serrinha - Cidadão ativo!'}
           </Typography>
         </Box>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: 3, fontWeight: 500 }}>
             {error}
+          </Alert>
+        )}
+
+        {success && (
+          <Alert severity="success" sx={{ mb: 3, borderRadius: 3, fontWeight: 500 }}>
+            {success}
           </Alert>
         )}
 
@@ -134,31 +159,34 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
               sx: { borderRadius: 3 }
             }}
           />
-          <TextField
-            fullWidth
-            label="Senha"
-            type={showPassword ? 'text' : 'password'}
-            margin="normal"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Lock color="action" fontSize="small" />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-              sx: { borderRadius: 3 }
-            }}
-          />
+          
+          {!isForgotPassword && (
+            <TextField
+              fullWidth
+              label="Senha"
+              type={showPassword ? 'text' : 'password'}
+              margin="normal"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Lock color="action" fontSize="small" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: 3 }
+              }}
+            />
+          )}
           
           <Button
             fullWidth
@@ -176,37 +204,41 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
               boxShadow: '0 8px 20px rgba(0,74,141,0.2)'
             }}
           >
-            {loading ? <CircularProgress size={24} color="inherit" /> : 'Entrar na Conta'}
+            {loading ? <CircularProgress size={24} color="inherit" /> : (isForgotPassword ? 'Enviar Senha' : 'Entrar na Conta')}
           </Button>
           
           <Box sx={{ mt: 2, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Button 
               variant="text" 
               size="small"
-              onClick={() => alert("O procedimento no caso de senhas esquecidas é: Solicitar um cadastro como Admin")}
+              onClick={toggleForgotPassword}
               sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600 }}
             >
-              Esqueci minha senha
+              {isForgotPassword ? 'Voltar para o login' : 'Esqueci minha senha'}
             </Button>
             
-            <Divider sx={{ my: 1, opacity: 0.5 }}>ou</Divider>
-            
-            <Button 
-              component={Link}
-              to="/register"
-              variant="outlined" 
-              fullWidth
-              sx={{ 
-                textTransform: 'none', 
-                borderRadius: 3, 
-                fontWeight: 700,
-                py: 1,
-                borderWidth: 2,
-                '&:hover': { borderWidth: 2 }
-              }}
-            >
-              Solicitar Cadastro como Admin
-            </Button>
+            {!isForgotPassword && (
+              <>
+                <Divider sx={{ my: 1, opacity: 0.5 }}>ou</Divider>
+                
+                <Button 
+                  component={Link}
+                  to="/register"
+                  variant="outlined" 
+                  fullWidth
+                  sx={{ 
+                    textTransform: 'none', 
+                    borderRadius: 3, 
+                    fontWeight: 700,
+                    py: 1,
+                    borderWidth: 2,
+                    '&:hover': { borderWidth: 2 }
+                  }}
+                >
+                  Solicitar Cadastro como Admin
+                </Button>
+              </>
+            )}
           </Box>
         </form>
       </Paper>

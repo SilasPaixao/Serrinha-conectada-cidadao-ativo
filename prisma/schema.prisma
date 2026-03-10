@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url       = env("DATABASE_URL")  // Pooler aqui
-  directUrl = env("DIRECT_URL")    // Direct aqui (migrations)
+  // directUrl = env("DIRECT_URL")    // Direct aqui (migrations)
 }
 
 enum UserRole {
@@ -55,9 +55,29 @@ model Issue {
   status        IssueStatus          @default(PENDING)
   userId        String?
   user          User?                @relation(fields: [userId], references: [id])
+  
+  // Pole fields
+  poleId        String?
+  pole          Pole?                @relation(fields: [poleId], references: [id], onDelete: SetNull)
+  isNearPole    Boolean?
+  poleAddress   String?
+  poleReference String?
+  poleImageUrl  String?
+
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
   history       IssueStatusHistory[]
+}
+
+model Pole {
+  id            String    @id // Admin defined ID
+  address       String
+  neighborhood  String?
+  reference     String
+  imageUrl      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  issues        Issue[]
 }
 
 model WhatsAppLog {

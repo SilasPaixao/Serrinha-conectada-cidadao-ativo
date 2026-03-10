@@ -2,6 +2,7 @@ import { Express, Request, Response } from "express";
 import multer from "multer";
 import { AuthService, loginSchema, registerSchema } from "../../application/authService.js";
 import { IssueService, createIssueSchema } from "../../application/issueService.js";
+import { PoleService, createPoleSchema } from "../../application/poleService.js";
 import { authenticate, authorize, AuthRequest } from "../middlewares/auth.js";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
@@ -10,6 +11,7 @@ import prisma from "../../infra/database/prisma.js";
 const upload = multer({ storage: multer.memoryStorage() });
 const authService = new AuthService();
 const issueService = new IssueService();
+const poleService = new PoleService();
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -65,6 +67,17 @@ export function setupRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       handleError(res, error, 401);
+    }
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) throw new Error("E-mail é obrigatório");
+      const result = await authService.forgotPassword(email);
+      res.json(result);
+    } catch (error: any) {
+      handleError(res, error);
     }
   });
 
@@ -124,6 +137,40 @@ export function setupRoutes(app: Express) {
       res.json(issues);
     } catch (error: any) {
       handleError(res, error, 500);
+    }
+  });
+
+  // Admin Poles
+  app.get("/api/admin/poles", authenticate, authorize(["ADMIN"]), async (req, res) => {
+    try {
+      const poles = await poleService.listPoles();
+      res.json(poles);
+    } catch (error: any) {
+      handleError(res, error, 500);
+    }
+  });
+
+  app.post("/api/admin/poles", authenticate, authorize(["ADMIN"]), upload.single("image"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "Foto do poste é obrigatória" });
+      const data = createPoleSchema.parse(req.body);
+      const pole = await poleService.createPole(data, req.file);
+      res.json(pole);
+    } catch (error: any) {
+      handleError(res, error);
+    }
+  });
+
+  app.delete("/api/admin/poles/:id", authenticate, authorize(["ADMIN"]), async (req, res) => {
+    try {
+      const poleId = req.params.id;
+      console.log(`🗑️ Attempting to delete pole with ID: ${poleId}`);
+      await poleService.deletePole(poleId);
+      console.log(`✅ Successfully deleted pole with ID: ${poleId}`);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error(`❌ Error deleting pole:`, error);
+      handleError(res, error);
     }
   });
 
@@ -214,7 +261,7 @@ export function setupRoutes(app: Express) {
         failed: await prisma.whatsAppLog.count({ where: { status: 'failed' } }),
       };
       
-      res.json({ config, queue: counts });
+      res.json({ config, stats: counts });
     } catch (error: any) {
       handleError(res, error, 500);
     }
@@ -239,6 +286,17 @@ export function setupRoutes(app: Express) {
         console.error("Nominatim Response:", error.response.status, error.response.data);
       }
       res.status(500).json({ error: "Erro ao buscar endereço. Tente novamente mais tarde." });
+    }
+  });
+
+  // Poles Public
+  app.get("/api/poles/:id", async (req, res) => {
+    try {
+      const pole = await poleService.getPoleById(req.params.id);
+      if (!pole) return res.status(404).json({ error: "Poste não encontrado" });
+      res.json(pole);
+    } catch (error: any) {
+      handleError(res, error, 500);
     }
   });
 }

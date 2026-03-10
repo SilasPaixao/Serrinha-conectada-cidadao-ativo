@@ -112,10 +112,13 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [issues, setIssues] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [poles, setPoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [loadingPoles, setLoadingPoles] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [openDialog, setOpenDialog] = useState(false);
+  const [openPoleDialog, setOpenPoleDialog] = useState(false);
   const [openImageModal, setOpenImageModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [openStatusConfirmDialog, setOpenStatusConfirmDialog] = useState(false);
@@ -124,6 +127,16 @@ export default function AdminDashboard() {
   const [manualMessage, setManualMessage] = useState('');
   const [sendingNotification, setSendingNotification] = useState(false);
   const [viewTab, setViewTab] = useState(0);
+  
+  // New Pole State
+  const [newPole, setNewPole] = useState({
+    id: '',
+    address: '',
+    neighborhood: '',
+    reference: '',
+  });
+  const [poleImage, setPoleImage] = useState<File | null>(null);
+  const [savingPole, setSavingPole] = useState(false);
   
   // WhatsApp Diagnostics
   const [whatsAppLogs, setWhatsAppLogs] = useState<any[]>([]);
@@ -135,6 +148,10 @@ export default function AdminDashboard() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterNeighborhood, setFilterNeighborhood] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [openPoleDeleteConfirm, setOpenPoleDeleteConfirm] = useState(false);
+  const [poleToDelete, setPoleToDelete] = useState<string | null>(null);
+  const [openRejectConfirm, setOpenRejectConfirm] = useState(false);
+  const [requestToReject, setRequestToReject] = useState<string | null>(null);
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -158,6 +175,21 @@ export default function AdminDashboard() {
       alert(formatErrorMessage(err, 'Erro ao buscar relatos'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPoles = async () => {
+    setLoadingPoles(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/admin/poles', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPoles(response.data);
+    } catch (err) {
+      console.error('Erro ao buscar postes', err);
+    } finally {
+      setLoadingPoles(false);
     }
   };
 
@@ -199,8 +231,64 @@ export default function AdminDashboard() {
     fetchPendingRequests();
     if (currentUser?.role === 'ADMIN') {
       fetchWhatsAppDiagnostics();
+      fetchPoles();
     }
   }, []);
+
+  const handleCreatePole = async () => {
+    if (!newPole.id || !newPole.address || !newPole.reference || !poleImage) {
+      alert('Preencha todos os campos e anexe uma foto.');
+      return;
+    }
+
+    setSavingPole(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('id', newPole.id);
+      formData.append('address', newPole.address);
+      formData.append('neighborhood', newPole.neighborhood);
+      formData.append('reference', newPole.reference);
+      formData.append('image', poleImage);
+
+      await axios.post('/api/admin/poles', formData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      setOpenPoleDialog(false);
+      setNewPole({ id: '', address: '', neighborhood: '', reference: '' });
+      setPoleImage(null);
+      fetchPoles();
+      alert('Poste cadastrado com sucesso!');
+    } catch (err) {
+      alert(formatErrorMessage(err, 'Erro ao cadastrar poste'));
+    } finally {
+      setSavingPole(false);
+    }
+  };
+
+  const handleDeletePole = (id: string) => {
+    setPoleToDelete(id);
+    setOpenPoleDeleteConfirm(true);
+  };
+
+  const confirmDeletePole = async () => {
+    if (!poleToDelete) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/admin/poles/${encodeURIComponent(poleToDelete)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOpenPoleDeleteConfirm(false);
+      setPoleToDelete(null);
+      fetchPoles();
+    } catch (err) {
+      alert(formatErrorMessage(err, 'Erro ao excluir poste'));
+    }
+  };
 
   const handleApproveRequest = async (id: string) => {
     try {
@@ -215,13 +303,20 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleRejectRequest = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja rejeitar esta solicitação?')) return;
+  const handleRejectRequest = (id: string) => {
+    setRequestToReject(id);
+    setOpenRejectConfirm(true);
+  };
+
+  const confirmRejectRequest = async () => {
+    if (!requestToReject) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/admin/reject-request/${id}`, {}, {
+      await axios.post(`/api/admin/reject-request/${requestToReject}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      setOpenRejectConfirm(false);
+      setRequestToReject(null);
       fetchPendingRequests();
       alert('Solicitação rejeitada com sucesso!');
     } catch (err) {
@@ -558,6 +653,9 @@ export default function AdminDashboard() {
           <Tab icon={<ListIcon sx={{ mr: 1 }} />} iconPosition="start" label="Lista" />
           <Tab icon={<MapIcon sx={{ mr: 1 }} />} iconPosition="start" label="Mapa" />
           {currentUser?.role === 'ADMIN' && (
+            <Tab icon={<LocationOn sx={{ mr: 1 }} />} iconPosition="start" label="Postes" />
+          )}
+          {currentUser?.role === 'ADMIN' && (
             <Tab icon={<WhatsApp sx={{ mr: 1 }} />} iconPosition="start" label="WhatsApp" />
           )}
           <Tab 
@@ -856,6 +954,84 @@ export default function AdminDashboard() {
               </MapContainer>
             </Paper>
           ) : viewTab === 2 && currentUser?.role === 'ADMIN' ? (
+            <Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>Gestão de Postes (QR Codes)</Typography>
+                <Button 
+                  variant="contained" 
+                  startIcon={<LocationOn />} 
+                  onClick={() => setOpenPoleDialog(true)}
+                  sx={{ borderRadius: 3, fontWeight: 700 }}
+                >
+                  Cadastrar Novo Poste
+                </Button>
+              </Box>
+
+              <Paper sx={{ borderRadius: 5, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
+                <TableContainer>
+                  <Table>
+                    <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.01)' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 800 }}>FOTO</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>ID DO POSTE</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>ENDEREÇO</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>BAIRRO</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>REFERÊNCIA</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>LINK QR CODE</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800 }}>AÇÕES</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {poles.map((pole) => (
+                        <TableRow key={pole.id} hover>
+                          <TableCell>
+                            <Avatar 
+                              src={pole.imageUrl} 
+                              variant="rounded" 
+                              sx={{ width: 60, height: 60, border: '1px solid rgba(0,0,0,0.05)' }}
+                            >
+                              <LocationOn />
+                            </Avatar>
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 800, color: 'primary.main' }}>{pole.id}</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{pole.address}</TableCell>
+                          <TableCell>{pole.neighborhood || '-'}</TableCell>
+                          <TableCell sx={{ color: 'text.secondary' }}>{pole.reference}</TableCell>
+                          <TableCell>
+                            <Typography variant="caption" sx={{ fontFamily: 'monospace', bgcolor: 'rgba(0,0,0,0.05)', p: 0.5, borderRadius: 1 }}>
+                              {`${window.location.origin}/?p=${pole.id}`}
+                            </Typography>
+                            <IconButton size="small" onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/?p=${pole.id}`);
+                              alert('Link copiado!');
+                            }}>
+                              <Visibility sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </TableCell>
+                          <TableCell align="right">
+                            <IconButton color="error" onClick={() => handleDeletePole(pole.id)}>
+                              <Delete />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                {poles.length === 0 && !loadingPoles && (
+                  <Box sx={{ py: 10, textAlign: 'center' }}>
+                    <Typography variant="h6" color="text.secondary">Nenhum poste cadastrado</Typography>
+                    <Button sx={{ mt: 2 }} onClick={() => setOpenPoleDialog(true)}>Cadastrar Primeiro Poste</Button>
+                  </Box>
+                )}
+                {loadingPoles && (
+                  <Box sx={{ py: 10, textAlign: 'center' }}>
+                    <CircularProgress />
+                  </Box>
+                )}
+              </Paper>
+            </Box>
+          ) : viewTab === 3 && currentUser?.role === 'ADMIN' ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Paper sx={{ p: 3, borderRadius: 5, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -869,7 +1045,7 @@ export default function AdminDashboard() {
                 
                 {whatsAppStatus ? (
                   <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, md: 6 }}>
+                    <Grid size={{ xs: 12, md: 12 }}>
                       <Card variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Configuração da API (Evolution)</Typography>
                         <Stack spacing={1}>
@@ -884,29 +1060,6 @@ export default function AdminDashboard() {
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2">Instância:</Typography>
                             <Chip label={whatsAppStatus.config.instance} size="small" color={whatsAppStatus.config.instance === 'Configurado' ? 'success' : 'error'} />
-                          </Box>
-                        </Stack>
-                      </Card>
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <Card variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Status da Fila (BullMQ)</Typography>
-                        <Stack spacing={1}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body2">Aguardando:</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{whatsAppStatus.queue.waiting}</Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body2">Ativos:</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{whatsAppStatus.queue.active}</Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body2">Falhas:</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'error.main' }}>{whatsAppStatus.queue.failed}</Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body2">Concluídos:</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>{whatsAppStatus.queue.completed}</Typography>
                           </Box>
                         </Stack>
                       </Card>
@@ -963,7 +1116,7 @@ export default function AdminDashboard() {
                 </TableContainer>
               </Paper>
             </Box>
-          ) : (
+          ) : viewTab === 4 ? (
             <Paper sx={{ p: 4, borderRadius: 5, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
               <Typography variant="h5" sx={{ fontWeight: 800, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <PendingActions color="primary" /> Solicitações de Acesso Pendentes
@@ -1030,7 +1183,7 @@ export default function AdminDashboard() {
                 </TableContainer>
               )}
             </Paper>
-          )}
+          ) : null}
         </Box>
       </Fade>
 
@@ -1143,6 +1296,34 @@ export default function AdminDashboard() {
               <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase' }}>DESCRIÇÃO</Typography>
               <Typography variant="body2" sx={{ mt: 1, fontWeight: 500, lineHeight: 1.6 }}>{selectedIssue?.description}</Typography>
             </Box>
+
+            {selectedIssue?.poleId && (
+              <Box sx={{ p: 2, bgcolor: 'rgba(0,74,141,0.03)', borderRadius: 3, border: '1px solid rgba(0,74,141,0.1)' }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'primary.main', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <LocationOn sx={{ fontSize: 16 }} /> INFORMAÇÕES DO POSTE (QR CODE)
+                </Typography>
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid size={{ xs: 12, sm: 8 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>ID: {selectedIssue.poleId}</Typography>
+                    <Typography variant="body2">Endereço: {selectedIssue.poleAddress}</Typography>
+                    <Typography variant="body2">Ref: {selectedIssue.poleReference}</Typography>
+                    <Typography variant="caption" color={selectedIssue.isNearPole ? "success.main" : "error.main"} sx={{ fontWeight: 800, mt: 1, display: 'block' }}>
+                      {selectedIssue.isNearPole ? "✓ Cidadão confirmou estar próximo a este poste" : "✗ Cidadão informou NÃO estar próximo a este poste"}
+                    </Typography>
+                  </Grid>
+                  {selectedIssue.poleImageUrl && (
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <img 
+                        src={selectedIssue.poleImageUrl} 
+                        alt="Foto do Poste" 
+                        style={{ width: '100%', borderRadius: 8, border: '1px solid rgba(0,0,0,0.1)' }} 
+                        referrerPolicy="no-referrer"
+                      />
+                    </Grid>
+                  )}
+                </Grid>
+              </Box>
+            )}
 
             <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
               <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase' }}>LOCALIZAÇÃO</Typography>
@@ -1312,6 +1493,122 @@ export default function AdminDashboard() {
             sx={{ borderRadius: 2, fontWeight: 800 }}
           >
             Sim, Excluir
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Pole Delete Confirmation */}
+      <Dialog 
+        open={openPoleDeleteConfirm} 
+        onClose={() => setOpenPoleDeleteConfirm(false)}
+        PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: 'error.main' }}>Confirmar Exclusão de Poste</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontWeight: 500 }}>
+            Tem certeza que deseja excluir permanentemente o poste <strong>{poleToDelete}</strong>? 
+            Esta ação não pode ser desfeita.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenPoleDeleteConfirm(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={confirmDeletePole}
+            sx={{ borderRadius: 2, fontWeight: 800 }}
+          >
+            Sim, Excluir
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reject Request Confirmation */}
+      <Dialog 
+        open={openRejectConfirm} 
+        onClose={() => setOpenRejectConfirm(false)}
+        PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: 'error.main' }}>Confirmar Rejeição</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontWeight: 500 }}>
+            Tem certeza que deseja rejeitar esta solicitação de acesso administrativo?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenRejectConfirm(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={confirmRejectRequest}
+            sx={{ borderRadius: 2, fontWeight: 800 }}
+          >
+            Sim, Rejeitar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Pole Registration Dialog */}
+      <Dialog 
+        open={openPoleDialog} 
+        onClose={() => setOpenPoleDialog(false)}
+        PaperProps={{ sx: { borderRadius: 5, p: 1, minWidth: 400 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: 'primary.main' }}>Cadastrar Novo Poste</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <TextField
+              fullWidth
+              label="ID do Poste (Ex: 10, 101, A1)"
+              value={newPole.id}
+              onChange={(e) => setNewPole({ ...newPole, id: e.target.value })}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+            />
+            <TextField
+              fullWidth
+              label="Endereço"
+              value={newPole.address}
+              onChange={(e) => setNewPole({ ...newPole, address: e.target.value })}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+            />
+            <TextField
+              fullWidth
+              label="Bairro"
+              value={newPole.neighborhood}
+              onChange={(e) => setNewPole({ ...newPole, neighborhood: e.target.value })}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+            />
+            <TextField
+              fullWidth
+              label="Ponto de Referência"
+              value={newPole.reference}
+              onChange={(e) => setNewPole({ ...newPole, reference: e.target.value })}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+            />
+            <Button
+              variant="outlined"
+              component="label"
+              sx={{ borderRadius: 3, py: 1.5, textTransform: 'none', fontWeight: 700 }}
+            >
+              {poleImage ? `Foto: ${poleImage.name}` : 'Anexar Foto Real do Poste'}
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={(e) => setPoleImage(e.target.files?.[0] || null)}
+              />
+            </Button>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenPoleDialog(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleCreatePole}
+            disabled={savingPole}
+            sx={{ borderRadius: 2, fontWeight: 800, px: 4 }}
+          >
+            {savingPole ? <CircularProgress size={24} /> : 'Cadastrar Poste'}
           </Button>
         </DialogActions>
       </Dialog>
