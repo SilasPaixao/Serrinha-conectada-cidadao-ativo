@@ -44,10 +44,19 @@ import IssueTracker from './views/IssueTracker';
 import AdminDashboard from './views/AdminDashboard';
 import Login from './views/Login';
 import Register from './views/Register';
+import ResetPassword from './views/ResetPassword';
 
 export default function App() {
   const [user, setUser] = useState<any>(() => {
     const savedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    
+    // Se tiver usuário mas não tiver token, limpa tudo
+    if (savedUser && !token) {
+      localStorage.removeItem('user');
+      return null;
+    }
+    
     return savedUser ? JSON.parse(savedUser) : null;
   });
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -315,6 +324,7 @@ export default function App() {
             />
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login onLogin={(u: any) => setUser(u)} />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
           </Routes>
         </Container>
       </Box>

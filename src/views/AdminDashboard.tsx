@@ -165,14 +165,13 @@ export default function AdminDashboard() {
   const fetchIssues = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/admin/issues', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/issues');
       setIssues(response.data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao buscar relatos', err);
-      alert(formatErrorMessage(err, 'Erro ao buscar relatos'));
+      if (err.response?.status !== 401) {
+        alert(formatErrorMessage(err, 'Erro ao buscar relatos'));
+      }
     } finally {
       setLoading(false);
     }
@@ -181,12 +180,9 @@ export default function AdminDashboard() {
   const fetchPoles = async () => {
     setLoadingPoles(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/admin/poles', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/poles');
       setPoles(response.data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao buscar postes', err);
     } finally {
       setLoadingPoles(false);
@@ -196,14 +192,13 @@ export default function AdminDashboard() {
   const fetchPendingRequests = async () => {
     setLoadingRequests(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/admin/pending-requests', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/pending-requests');
       setPendingRequests(response.data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao buscar solicitações pendentes', err);
-      alert(formatErrorMessage(err, 'Erro ao buscar solicitações pendentes'));
+      if (err.response?.status !== 401) {
+        alert(formatErrorMessage(err, 'Erro ao buscar solicitações pendentes'));
+      }
     } finally {
       setLoadingRequests(false);
     }
@@ -212,14 +207,13 @@ export default function AdminDashboard() {
   const fetchWhatsAppDiagnostics = async () => {
     setLoadingWhatsApp(true);
     try {
-      const token = localStorage.getItem('token');
       const [logsRes, statusRes] = await Promise.all([
-        axios.get('/api/admin/whatsapp/logs', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('/api/admin/whatsapp/status', { headers: { Authorization: `Bearer ${token}` } })
+        axios.get('/api/admin/whatsapp/logs'),
+        axios.get('/api/admin/whatsapp/status')
       ]);
       setWhatsAppLogs(logsRes.data);
       setWhatsAppStatus(statusRes.data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao buscar diagnósticos do WhatsApp', err);
     } finally {
       setLoadingWhatsApp(false);
@@ -253,7 +247,6 @@ export default function AdminDashboard() {
 
       await axios.post('/api/admin/poles', formData, {
         headers: { 
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
         }
       });
@@ -279,9 +272,7 @@ export default function AdminDashboard() {
     if (!poleToDelete) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`/api/admin/poles/${encodeURIComponent(poleToDelete)}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.delete(`/api/admin/poles/${encodeURIComponent(poleToDelete)}`);
       setOpenPoleDeleteConfirm(false);
       setPoleToDelete(null);
       fetchPoles();
@@ -293,9 +284,7 @@ export default function AdminDashboard() {
   const handleApproveRequest = async (id: string) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/admin/approve-request/${id}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.post(`/api/admin/approve-request/${id}`, {});
       fetchPendingRequests();
       alert('Solicitação aprovada com sucesso!');
     } catch (err) {
@@ -312,9 +301,7 @@ export default function AdminDashboard() {
     if (!requestToReject) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/admin/reject-request/${requestToReject}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.post(`/api/admin/reject-request/${requestToReject}`, {});
       setOpenRejectConfirm(false);
       setRequestToReject(null);
       fetchPendingRequests();
@@ -328,8 +315,7 @@ export default function AdminDashboard() {
     try {
       const token = localStorage.getItem('token');
       await axios.patch(`/api/admin/issues/${selectedIssue.id}/status`, 
-        { status: newStatus, comment },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { status: newStatus, comment }
       );
       setOpenStatusConfirmDialog(false);
       setOpenDialog(false);
@@ -347,8 +333,7 @@ export default function AdminDashboard() {
     try {
       const token = localStorage.getItem('token');
       await axios.post(`/api/admin/issues/${selectedIssue.id}/send-notification`, 
-        { message: manualMessage },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { message: manualMessage }
       );
       setManualMessage('');
       alert('Notificação enviada com sucesso!');
@@ -364,9 +349,7 @@ export default function AdminDashboard() {
   const handleDeleteIssue = async () => {
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`/api/admin/issues/${selectedIssue.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.delete(`/api/admin/issues/${selectedIssue.id}`);
       setOpenDeleteDialog(false);
       fetchIssues();
     } catch (err) {

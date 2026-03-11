@@ -81,6 +81,18 @@ export function setupRoutes(app: Express) {
     }
   });
 
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password) throw new Error("Token e nova senha são obrigatórios");
+      if (password.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres");
+      const result = await authService.resetPassword(token, password);
+      res.json(result);
+    } catch (error: any) {
+      handleError(res, error);
+    }
+  });
+
   app.get("/api/auth/me", authenticate, (req: AuthRequest, res) => {
     res.json(req.user);
   });

@@ -564,11 +564,19 @@ export default function IssueWizard() {
         {activeStep < steps.length && (
           <Stepper 
             activeStep={activeStep} 
-            orientation={isMobile ? 'vertical' : 'horizontal'}
+            orientation="horizontal"
+            alternativeLabel
             sx={{ 
-              mb: 6, 
-              '& .MuiStepLabel-label': { fontWeight: 600 },
-              '& .MuiStep-root': { py: { xs: 1, sm: 0 } }
+              mb: { xs: 4, sm: 6 }, 
+              '& .MuiStepLabel-label': { 
+                fontWeight: 600,
+                fontSize: { xs: '0.65rem', sm: '0.875rem' },
+                mt: 1
+              },
+              '& .MuiStepIcon-root': {
+                fontSize: { xs: '1.2rem', sm: '1.5rem' }
+              },
+              '& .MuiStep-root': { py: 0 }
             }}
           >
             {steps.map((label) => (

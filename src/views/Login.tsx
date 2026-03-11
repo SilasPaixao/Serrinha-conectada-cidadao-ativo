@@ -124,7 +124,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             {isForgotPassword 
-              ? 'Informe seu e-mail de administrador para receber sua senha.' 
+              ? 'Informe seu e-mail para receber um link de recuperação.' 
               : 'Acesse o painel do Prefeitura de Serrinha - Cidadão ativo!'}
           </Typography>
         </Box>
@@ -204,7 +204,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
               boxShadow: '0 8px 20px rgba(0,74,141,0.2)'
             }}
           >
-            {loading ? <CircularProgress size={24} color="inherit" /> : (isForgotPassword ? 'Enviar Senha' : 'Entrar na Conta')}
+            {loading ? <CircularProgress size={24} color="inherit" /> : (isForgotPassword ? 'Recuperar Senha' : 'Entrar na Conta')}
           </Button>
           
           <Box sx={{ mt: 2, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1 }}>

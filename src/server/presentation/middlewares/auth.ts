@@ -12,18 +12,21 @@ export interface AuthRequest extends Request {
 }
 
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
-  const token = req.headers.authorization?.split(" ")[1];
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(" ")[1];
 
-  if (!token) {
-    return res.status(401).json({ error: "Não autorizado" });
+  if (!token || token === "null" || token === "undefined") {
+    console.warn(`[Auth] Tentativa de acesso sem token ou token inválido: ${token} em ${req.path}`);
+    return res.status(401).json({ error: "Não autorizado. Token ausente." });
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     req.user = decoded;
     next();
-  } catch (error) {
-    res.status(401).json({ error: "Token inválido" });
+  } catch (error: any) {
+    console.error(`[Auth] Erro ao verificar token em ${req.path}:`, error.message);
+    res.status(401).json({ error: "Token inválido ou expirado" });
   }
 };
 

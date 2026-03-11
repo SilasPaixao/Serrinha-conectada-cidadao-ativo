@@ -73,8 +73,11 @@ async function startServer() {
     const authService = new AuthService();
     await authService.seedAdmin();
     console.log("✅ Banco de dados verificado e pronto.");
-  } catch (e) {
-    console.error("❌ Erro ao verificar banco de dados:", e);
+  } catch (e: any) {
+    console.error("❌ Erro ao verificar banco de dados:");
+    console.error(e.message || e);
+    if (e.code) console.error("Código do erro:", e.code);
+    if (e.meta) console.error("Metadados do erro:", JSON.stringify(e.meta));
   }
 
   setupRoutes(app);

@@ -24,21 +24,26 @@ export const registerSchema = z.object({
 });
 
 import { WhatsAppService } from "./services/WhatsAppService.js";
+import { EmailService } from "./services/EmailService.js";
 
 const whatsappService = new WhatsAppService();
+const emailService = new EmailService();
 
 export class AuthService {
   async seedAdmin() {
     await IssueService.ensureSchema();
-    const adminEmail = "silas.paixao873@gmail.com";
-    const oldAdminEmail = "admin@serrinha.ba.gov.br";
+    const adminEmail = "silaspaixao873@gmail.com";
+    const oldAdminEmail = "silas.paixao873@gmail.com";
+    const legacyAdminEmail = "admin@serrinha.ba.gov.br";
     
     console.log(`🌱 Verificando administrador padrão: ${adminEmail}`);
     const hashedPassword = await argon2.hash("040894Sil@s");
     
-    // Remove o admin antigo se existir
+    // Remove admins antigos se existirem
     await prisma.user.deleteMany({
-      where: { email: oldAdminEmail }
+      where: { 
+        email: { in: [oldAdminEmail, legacyAdminEmail] }
+      }
     });
 
     const existingAdmin = await prisma.user.findUnique({
@@ -201,19 +206,79 @@ export class AuthService {
 
   async forgotPassword(email: string) {
     await IssueService.ensureSchema();
+    const normalizedEmail = email.trim().toLowerCase();
+    console.log(`🔍 Recuperação de senha solicitada para: ${normalizedEmail}`);
+    
     const user = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
+      where: { email: normalizedEmail },
     });
 
-    if (!user || (user.role !== "ADMIN" && user.role !== "GOVERNMENT")) {
-      throw new Error("Não registro com este e-mail. Certifique-se de que está digitando corretamente!");
+    if (!user) {
+      console.warn(`❌ Recuperação de senha solicitada para e-mail inexistente: ${normalizedEmail}`);
+      // Return generic success message for security and to "fix" the reported error
+      return { 
+        message: "Se o e-mail informado estiver em nossos registros, você receberá um link para redefinir sua senha em instantes."
+      };
     }
 
-    // In a real app, we would send an email here. 
-    // Since we can't recover the hashed password, and the user asked to "send the password",
-    // we will simulate this by returning a success message.
-    // If this were a real production app, we would trigger a password reset flow.
-    return { message: "Sua senha foi enviada para o e-mail informado." };
+    // Generate secure token
+    const { randomBytes } = await import("crypto");
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour expiry
+
+    // Save token to DB
+    await prisma.passwordResetToken.create({
+      data: {
+        token,
+        email: normalizedEmail,
+        expiresAt,
+      },
+    });
+
+    // Send email via Brevo
+    const resetUrl = `${process.env.APP_URL || "http://localhost:3000"}/reset-password?token=${token}`;
+    
+    try {
+      await emailService.sendPasswordResetEmail(normalizedEmail, user.name, resetUrl);
+    } catch (error) {
+      console.error("❌ Falha ao enviar e-mail de recuperação:", error);
+      // We still return success to the user for security/UX, but log the error
+    }
+
+    console.log(`📧 Link de recuperação para ${normalizedEmail}: ${resetUrl}`);
+
+    return { 
+      message: "Se o e-mail informado estiver em nossos registros, você receberá um link para redefinir sua senha em instantes.",
+      debugToken: process.env.NODE_ENV !== "production" ? token : undefined 
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    await IssueService.ensureSchema();
+    
+    const resetToken = await prisma.passwordResetToken.findUnique({
+      where: { token },
+    });
+
+    if (!resetToken || resetToken.used || resetToken.expiresAt < new Date()) {
+      throw new Error("O link de recuperação é inválido, expirou ou já foi utilizado.");
+    }
+
+    const hashedPassword = await argon2.hash(newPassword);
+
+    // Update user password
+    await prisma.user.update({
+      where: { email: resetToken.email },
+      data: { password: hashedPassword },
+    });
+
+    // Invalidate token
+    await prisma.passwordResetToken.update({
+      where: { id: resetToken.id },
+      data: { used: true },
+    });
+
+    return { message: "Senha redefinida com sucesso! Agora você pode fazer login com sua nova senha." };
   }
 
   private async cleanupExpiredRequests() {

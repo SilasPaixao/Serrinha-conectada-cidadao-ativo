@@ -102,3 +102,14 @@ model IssueStatusHistory {
   changedBy   User        @relation(fields: [changedById], references: [id])
   createdAt   DateTime    @default(now())
 }
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  email     String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+}
