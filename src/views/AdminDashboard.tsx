@@ -409,6 +409,7 @@ export default function AdminDashboard() {
       { header: 'Status', key: 'status', width: 15 },
       { header: 'Data', key: 'date', width: 20 },
       { header: 'Endereço', key: 'address', width: 40 },
+      { header: 'WhatsApp', key: 'whatsapp', width: 20 },
       { header: 'Descrição', key: 'description', width: 50 },
     ];
 
@@ -419,6 +420,7 @@ export default function AdminDashboard() {
         status: statusMap[issue.status].label,
         date: format(new Date(issue.createdAt), 'dd/MM/yyyy HH:mm'),
         address: issue.address || 'N/A',
+        whatsapp: issue.whatsapp || 'N/A',
         description: issue.description,
       });
     });
@@ -446,11 +448,12 @@ export default function AdminDashboard() {
       issue.category,
       statusMap[issue.status].label,
       format(new Date(issue.createdAt), 'dd/MM/yyyy'),
-      issue.address || 'N/A'
+      issue.address || 'N/A',
+      issue.whatsapp || 'N/A'
     ]);
 
     autoTable(doc, {
-      head: [['Protocolo', 'Categoria', 'Status', 'Data', 'Endereço']],
+      head: [['Protocolo', 'Categoria', 'Status', 'Data', 'Endereço', 'WhatsApp']],
       body: tableData,
       startY: 45,
       theme: 'grid',
