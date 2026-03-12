@@ -32,52 +32,43 @@ const emailService = new EmailService();
 export class AuthService {
   async seedAdmin() {
     await IssueService.ensureSchema();
-    const adminEmail = "silaspaixao873@gmail.com";
-    const oldAdminEmail = "silas.paixao873@gmail.com";
-    const legacyAdminEmail = "admin@serrinha.ba.gov.br";
     
-    console.log(`🌱 Verificando administrador padrão: ${adminEmail}`);
-    const hashedPassword = await argon2.hash("040894Sil@s");
-    
-    // Remove admins antigos se existirem
-    await prisma.user.deleteMany({
-      where: { 
-        email: { in: [oldAdminEmail, legacyAdminEmail] }
-      }
+    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL;
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+    const adminName = process.env.DEFAULT_ADMIN_NAME || "Administrador";
+
+    if (!adminEmail || !adminPassword) {
+      console.warn("⚠️ Variáveis de ambiente DEFAULT_ADMIN_EMAIL ou DEFAULT_ADMIN_PASSWORD não configuradas. Usuário administrador padrão não será criado.");
+      return;
+    }
+
+    // Verifica se já existe QUALQUER administrador no sistema
+    const anyAdmin = await prisma.user.findFirst({
+      where: { role: "ADMIN" }
     });
 
-    const existingAdmin = await prisma.user.findUnique({
-      where: { email: adminEmail },
-    });
+    if (anyAdmin) {
+      console.log("✅ Já existe um administrador no sistema. Pulando criação do usuário padrão.");
+      return;
+    }
 
-    if (!existingAdmin) {
-      console.log("🌱 Semeando usuário administrador padrão...");
+    console.log(`🌱 Semeando usuário administrador padrão: ${adminEmail}`);
+    const hashedPassword = await argon2.hash(adminPassword);
+
+    try {
       await prisma.user.create({
         data: {
-          email: adminEmail,
+          email: adminEmail.toLowerCase().trim(),
           password: hashedPassword,
-          name: "Silas Paixão",
+          name: adminName,
           role: "ADMIN",
           status: "ACTIVE",
         },
       });
-      console.log("✅ Usuário administrador criado: " + adminEmail);
-    } else {
-      await prisma.user.update({
-        where: { email: adminEmail },
-        data: { 
-          password: hashedPassword,
-          role: "ADMIN",
-          status: "ACTIVE"
-        }
-      });
-      console.log("🔄 Credenciais do administrador atualizadas.");
+      console.log("✅ Usuário administrador padrão criado com sucesso.");
+    } catch (error) {
+      console.error("❌ Erro ao criar usuário administrador padrão:", error);
     }
-
-    const allUsers = await prisma.user.findMany({
-      select: { email: true, role: true, status: true }
-    });
-    console.log("👥 Usuários cadastrados no sistema:", JSON.stringify(allUsers, null, 2));
   }
 
   async register(data: z.infer<typeof registerSchema>) {
