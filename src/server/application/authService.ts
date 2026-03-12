@@ -206,10 +206,7 @@ export class AuthService {
 
     if (!user) {
       console.warn(`❌ Recuperação de senha solicitada para e-mail inexistente: ${normalizedEmail}`);
-      // Return generic success message for security and to "fix" the reported error
-      return { 
-        message: "Se o e-mail informado estiver em nossos registros, você receberá um link para redefinir sua senha em instantes."
-      };
+      throw new Error("Este email não possui registro!");
     }
 
     // Generate secure token
