@@ -224,7 +224,8 @@ export class AuthService {
     });
 
     // Send email via Brevo
-    const resetUrl = `${process.env.APP_URL || "http://localhost:3000"}/reset-password?token=${token}`;
+    const baseUrl = process.env.APP_BASE_URL || process.env.APP_URL || "http://localhost:3000";
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
     
     try {
       await emailService.sendPasswordResetEmail(normalizedEmail, user.name, resetUrl);

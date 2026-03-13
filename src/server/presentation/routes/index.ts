@@ -14,9 +14,12 @@ const issueService = new IssueService();
 const poleService = new PoleService();
 
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 login requests per windowMs
-  message: "Muitas tentativas de login, tente novamente mais tarde",
+  windowMs: 10 * 60 * 1000, // 10 minutos
+  max: 10, // Limite de 10 tentativas por IP
+  message: { error: "Muitas tentativas de login. Por favor, tente novamente em 10 minutos." },
+  standardHeaders: true, // Retorna informações de limite nos headers `RateLimit-*`
+  legacyHeaders: false, // Desabilita os headers `X-RateLimit-*`
+  statusCode: 429,
 });
 
 function handleError(res: Response, error: any, status: number = 400) {
