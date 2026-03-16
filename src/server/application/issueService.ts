@@ -146,6 +146,7 @@ export class IssueService {
             "issueId" TEXT,
             "phoneNumber" TEXT NOT NULL,
             "message" TEXT NOT NULL,
+            "imageUrl" TEXT,
             "status" TEXT NOT NULL,
             "lastError" TEXT,
             "attempts" INTEGER NOT NULL DEFAULT 0,
@@ -154,6 +155,7 @@ export class IssueService {
             CONSTRAINT "WhatsAppLog_pkey" PRIMARY KEY ("id")
           );
         `);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "WhatsAppLog" ADD COLUMN IF NOT EXISTS "imageUrl" TEXT;`);
       } catch (e) {
         console.warn("⚠️ Error ensuring WhatsAppLog table:", e);
       }
@@ -258,7 +260,7 @@ export class IssueService {
     })));
   }
 
-  async updateStatus(issueId: string, status: any, comment: string, changedById: string) {
+  async updateStatus(issueId: string, status: any, comment: string, changedById: string, file?: Express.Multer.File) {
     const statusMap: Record<string, string> = {
       PENDING: "Pendente",
       IN_PROGRESS: "Em Andamento",
@@ -269,6 +271,11 @@ export class IssueService {
     const existingIssue = await prisma.issue.findUnique({ where: { id: issueId } });
     if (!existingIssue) {
       throw new Error("Relato não encontrado.");
+    }
+
+    let imageUrl: string | undefined;
+    if (file) {
+      imageUrl = await s3Service.uploadFile(file);
     }
 
     return prisma.$transaction(async (tx) => {
@@ -287,7 +294,8 @@ export class IssueService {
       });
 
       if (issue.whatsapp) {
-        whatsappService.notifyStatusUpdate(issue.whatsapp, issue.protocol, status, comment, issue.id)
+        const fullImageUrl = imageUrl ? await s3Service.getFileUrl(imageUrl) : undefined;
+        whatsappService.notifyStatusUpdate(issue.whatsapp, issue.protocol, status, comment, issue.id, fullImageUrl || undefined)
           .catch(error => console.error("Failed to enqueue WhatsApp status update:", error));
       }
 
@@ -335,7 +343,7 @@ export class IssueService {
     });
   }
 
-  async sendManualNotification(issueId: string, message: string) {
+  async sendManualNotification(issueId: string, message: string, file?: Express.Multer.File) {
     const issue = await prisma.issue.findUnique({
       where: { id: issueId }
     });
@@ -344,8 +352,14 @@ export class IssueService {
       throw new Error("Relato não encontrado.");
     }
 
+    let imageUrl: string | undefined;
+    if (file) {
+      imageUrl = await s3Service.uploadFile(file);
+    }
+
     if (issue.whatsapp) {
-      whatsappService.sendManualMessage(issue.whatsapp, issue.protocol, message, issue.id)
+      const fullImageUrl = imageUrl ? await s3Service.getFileUrl(imageUrl) : undefined;
+      whatsappService.sendManualMessage(issue.whatsapp, issue.protocol, message, issue.id, fullImageUrl || undefined)
         .catch(error => console.error("Failed to enqueue manual WhatsApp message:", error));
     }
 

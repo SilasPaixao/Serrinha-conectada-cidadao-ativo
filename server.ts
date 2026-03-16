@@ -53,6 +53,13 @@ async function startServer() {
     console.log("✅ Evolution API configurada.");
   }
 
+  // S3 Configuration Checks
+  if (!process.env.S3_ACCESS_KEY || !process.env.S3_SECRET_KEY) {
+    console.warn("⚠️ S3 (AWS/Storage) não configurado corretamente (ACCESS_KEY ou SECRET_KEY ausente). Uploads de imagem não funcionarão.");
+  } else {
+    console.log("✅ S3 (AWS/Storage) configurado.");
+  }
+
   // Start WhatsApp Worker (Database driven)
   try {
     const { startWhatsAppWorker } = await import("./src/server/infra/queue/WhatsAppWorker.js");

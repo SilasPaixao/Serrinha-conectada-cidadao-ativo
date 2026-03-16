@@ -85,6 +85,7 @@ model WhatsAppLog {
   issueId     String?
   phoneNumber String
   message     String
+  imageUrl    String?
   status      String    // pending, sent, failed
   lastError   String?
   attempts    Int       @default(0)

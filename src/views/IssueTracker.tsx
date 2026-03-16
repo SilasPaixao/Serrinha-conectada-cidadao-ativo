@@ -17,6 +17,7 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatErrorMessage } from '../utils/errorUtils';
+import { normalizeCategory } from '../utils/categoryUtils';
 
 const statusMap: any = {
   PENDING: { label: 'Pendente', color: 'warning', icon: '⏳' },
@@ -115,7 +116,7 @@ export default function IssueTracker() {
                     Protocolo {issue.protocol}
                   </Typography>
                 </Box>
-                <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>{issue.category}</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>{normalizeCategory(issue.category)}</Typography>
                 <Typography variant="body2" color="text.secondary">
                   Registrado em {format(new Date(issue.createdAt), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
                 </Typography>

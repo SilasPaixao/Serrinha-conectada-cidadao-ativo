@@ -4,6 +4,7 @@ export interface WhatsAppJobData {
   issueId?: string;
   phoneNumber: string;
   message: string;
+  imageUrl?: string;
 }
 
 /**
@@ -17,6 +18,7 @@ export async function addWhatsAppJob(data: WhatsAppJobData) {
         issueId: data.issueId,
         phoneNumber: data.phoneNumber,
         message: data.message,
+        imageUrl: data.imageUrl,
         status: 'pending',
         attempts: 0,
       },

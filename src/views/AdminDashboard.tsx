@@ -63,6 +63,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { formatErrorMessage } from '../utils/errorUtils';
+import { ISSUE_CATEGORIES } from '../constants';
+import { normalizeCategory } from '../utils/categoryUtils';
 
 // Fix Leaflet icon issue using CDN URLs
 const DefaultIcon = L.icon({
@@ -81,32 +83,7 @@ const statusMap: any = {
   REJECTED: { label: 'Rejeitado', color: 'error', icon: <ErrorOutline sx={{ fontSize: 16 }} />, bg: '#fef2f2', text: '#b91c1c' },
 };
 
-const categories = [
-  'Iluminação Pública',
-  'Buracos em Vias',
-  'Limpeza Urbana',
-  'Esgoto/Drenagem',
-  'Poda de Árvores',
-  'Sinalização',
-  'Outros'
-];
-
-const neighborhoods = [
-  'Centro',
-  'Vaquejada',
-  'Cidade Nova',
-  'Ginásio',
-  'Rodoviária',
-  'Novo Horizonte',
-  'Oséas',
-  'Urbis',
-  'Bomba',
-  'Colina das Mangueiras',
-  'Cruzeiro',
-  'Santa',
-  'Vila de Fátima',
-  'Morena Bela'
-].sort();
+const categories = ISSUE_CATEGORIES;
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -125,6 +102,8 @@ export default function AdminDashboard() {
   const [newStatus, setNewStatus] = useState('');
   const [comment, setComment] = useState('');
   const [manualMessage, setManualMessage] = useState('');
+  const [statusImage, setStatusImage] = useState<File | null>(null);
+  const [manualMessageImage, setManualMessageImage] = useState<File | null>(null);
   const [sendingNotification, setSendingNotification] = useState(false);
   const [viewTab, setViewTab] = useState(0);
   
@@ -142,11 +121,35 @@ export default function AdminDashboard() {
   const [whatsAppLogs, setWhatsAppLogs] = useState<any[]>([]);
   const [whatsAppStatus, setWhatsAppStatus] = useState<any>(null);
   const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
+  const [testNumber, setTestNumber] = useState('');
+  const [testMessage, setTestMessage] = useState('Olá! Esta é uma mensagem de teste do sistema Serrinha Conectada.');
+  const [sendingTest, setSendingTest] = useState(false);
+
+  const handleSendTestMessage = async () => {
+    if (!testNumber) {
+      alert('Por favor, insira um número para o teste.');
+      return;
+    }
+    setSendingTest(true);
+    try {
+      await axios.post('/api/admin/whatsapp/test', {
+        number: testNumber,
+        message: testMessage
+      });
+      alert('Mensagem de teste enfileirada com sucesso!');
+      fetchWhatsAppDiagnostics();
+    } catch (err: any) {
+      console.error('Erro ao enviar mensagem de teste', err);
+      alert(`Erro: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setSendingTest(false);
+    }
+  };
   
   // Filters
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
-  const [filterNeighborhood, setFilterNeighborhood] = useState('');
+  const [filterAddress, setFilterAddress] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [openPoleDeleteConfirm, setOpenPoleDeleteConfirm] = useState(false);
   const [poleToDelete, setPoleToDelete] = useState<string | null>(null);
@@ -314,12 +317,23 @@ export default function AdminDashboard() {
   const handleUpdateStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      await axios.patch(`/api/admin/issues/${selectedIssue.id}/status`, 
-        { status: newStatus, comment }
-      );
+      const formData = new FormData();
+      formData.append('status', newStatus);
+      formData.append('comment', comment);
+      
+      if (statusImage) {
+        formData.append('image', statusImage);
+      }
+
+      await axios.post(`/api/admin/issues/${selectedIssue.id}/status`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
       setOpenStatusConfirmDialog(false);
       setOpenDialog(false);
       setComment('');
+      setStatusImage(null);
       fetchIssues();
     } catch (err) {
       console.error('Erro ao atualizar status', err);
@@ -332,10 +346,19 @@ export default function AdminDashboard() {
     setSendingNotification(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/admin/issues/${selectedIssue.id}/send-notification`, 
-        { message: manualMessage }
-      );
+      const formData = new FormData();
+      formData.append('message', manualMessage);
+      if (manualMessageImage) {
+        formData.append('image', manualMessageImage);
+      }
+
+      await axios.post(`/api/admin/issues/${selectedIssue.id}/send-notification`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
       setManualMessage('');
+      setManualMessageImage(null);
       alert('Notificação enviada com sucesso!');
     } catch (err: any) {
       console.error('Erro ao enviar notificação', err);
@@ -361,17 +384,18 @@ export default function AdminDashboard() {
   const filteredIssues = useMemo(() => {
     return issues.filter(issue => {
       const matchesStatus = !filterStatus || issue.status === filterStatus;
-      const matchesCategory = !filterCategory || issue.category === filterCategory;
-      const matchesNeighborhood = !filterNeighborhood || 
-        (issue.address && issue.address.toLowerCase().includes(filterNeighborhood.toLowerCase()));
+      
+      const matchesCategory = !filterCategory || normalizeCategory(issue.category) === filterCategory;
+      const matchesAddress = !filterAddress || 
+        (issue.address && issue.address.toLowerCase().includes(filterAddress.toLowerCase()));
       const matchesSearch = !searchTerm || 
         issue.protocol.toLowerCase().includes(searchTerm.toLowerCase()) ||
         issue.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
         issue.address?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      return matchesStatus && matchesCategory && matchesNeighborhood && matchesSearch;
+      return matchesStatus && matchesCategory && matchesAddress && matchesSearch;
     });
-  }, [issues, filterStatus, filterCategory, filterNeighborhood, searchTerm]);
+  }, [issues, filterStatus, filterCategory, filterAddress, searchTerm]);
 
   const paginatedIssues = useMemo(() => {
     return filteredIssues.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
@@ -389,7 +413,7 @@ export default function AdminDashboard() {
   // Reset page when filters change
   useEffect(() => {
     setPage(0);
-  }, [filterStatus, filterCategory, filterNeighborhood, searchTerm]);
+  }, [filterStatus, filterCategory, filterAddress, searchTerm]);
 
   const stats = {
     total: issues.length,
@@ -592,18 +616,13 @@ export default function AdminDashboard() {
           </Grid>
           <Grid size={{ xs: 12, sm: 4, md: 2 }}>
             <TextField
-              select
               fullWidth
-              label="Bairro"
-              value={filterNeighborhood}
-              onChange={(e) => setFilterNeighborhood(e.target.value)}
+              label="Endereço"
+              placeholder="Filtrar por rua, bairro..."
+              value={filterAddress}
+              onChange={(e) => setFilterAddress(e.target.value)}
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-            >
-              <MenuItem value="">Todos os Bairros</MenuItem>
-              {neighborhoods.map((n) => (
-                <MenuItem key={n} value={n}>{n}</MenuItem>
-              ))}
-            </TextField>
+            />
           </Grid>
           <Grid size={{ xs: 12, sm: 4, md: 2 }}>
             <Button 
@@ -613,7 +632,7 @@ export default function AdminDashboard() {
                 setSearchTerm('');
                 setFilterStatus('');
                 setFilterCategory('');
-                setFilterNeighborhood('');
+                setFilterAddress('');
               }}
               sx={{ borderRadius: 3, height: 56, textTransform: 'none', fontWeight: 700 }}
             >
@@ -678,6 +697,7 @@ export default function AdminDashboard() {
                       <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>CATEGORIA</TableCell>
                       <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>DATA</TableCell>
                       <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>ENDEREÇO</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>WHATSAPP</TableCell>
                       <TableCell sx={{ fontWeight: 800, color: 'text.secondary' }}>STATUS</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 800, color: 'text.secondary' }}>AÇÕES</TableCell>
                     </TableRow>
@@ -757,12 +777,34 @@ export default function AdminDashboard() {
                           >
                             {issue.protocol}
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>{issue.category}</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{normalizeCategory(issue.category)}</TableCell>
                         <TableCell sx={{ color: 'text.secondary' }}>{format(new Date(issue.createdAt), 'dd/MM/yyyy HH:mm')}</TableCell>
                         <TableCell sx={{ maxWidth: 250 }}>
                           <Typography variant="body2" noWrap title={issue.address}>
                             {issue.address || 'Localização no mapa'}
                           </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {issue.whatsapp ? (
+                            <Tooltip title="Abrir conversa no WhatsApp">
+                              <Chip 
+                                icon={<WhatsApp sx={{ fontSize: '14px !important' }} />}
+                                label={issue.whatsapp}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(`https://wa.me/${issue.whatsapp.replace(/\D/g, '')}`, '_blank');
+                                }}
+                                size="small"
+                                sx={{ 
+                                  cursor: 'pointer', 
+                                  fontWeight: 600,
+                                  '&:hover': { bgcolor: 'success.light', color: 'white' }
+                                }}
+                              />
+                            </Tooltip>
+                          ) : (
+                            <Typography variant="caption" color="text.disabled">Não informado</Typography>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Chip 
@@ -1028,7 +1070,44 @@ export default function AdminDashboard() {
                     Atualizar Status
                   </Button>
                 </Box>
-                
+
+                <Paper sx={{ p: 3, mb: 4, borderRadius: 4, border: '1px solid rgba(0,0,0,0.05)' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <WhatsApp color="primary" /> Enviar Mensagem de Teste
+                  </Typography>
+                  <Grid container spacing={2} alignItems="flex-end">
+                    <Grid size={{ xs: 12, sm: 5 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Número (com DDD)"
+                        placeholder="75999999999"
+                        value={testNumber}
+                        onChange={(e) => setTestNumber(e.target.value.replace(/\D/g, ''))}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 5 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Mensagem"
+                        value={testMessage}
+                        onChange={(e) => setTestMessage(e.target.value)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 2 }}>
+                      <Button 
+                        fullWidth 
+                        variant="contained" 
+                        onClick={handleSendTestMessage}
+                        disabled={sendingTest || !testNumber}
+                      >
+                        {sendingTest ? <CircularProgress size={24} /> : 'Testar'}
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </Paper>
+
                 {whatsAppStatus ? (
                   <Grid container spacing={3}>
                     <Grid size={{ xs: 12, md: 12 }}>
@@ -1355,6 +1434,32 @@ export default function AdminDashboard() {
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
             />
 
+            <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)' }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', mb: 1, display: 'block' }}>
+                ANEXAR FOTO À NOTIFICAÇÃO (OPCIONAL)
+              </Typography>
+              <Button
+                variant="outlined"
+                component="label"
+                fullWidth
+                disabled={!selectedIssue?.whatsapp}
+                sx={{ borderRadius: 3, py: 1.5, textTransform: 'none', fontWeight: 700, bgcolor: 'white' }}
+              >
+                {statusImage ? `Foto: ${statusImage.name}` : 'Selecionar Foto para WhatsApp'}
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  onChange={(e) => setStatusImage(e.target.files?.[0] || null)}
+                />
+              </Button>
+              {!selectedIssue?.whatsapp && (
+                <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block', fontWeight: 600 }}>
+                  Opção desativada: Cidadão não forneceu número de WhatsApp.
+                </Typography>
+              )}
+            </Box>
+
             <Divider sx={{ my: 1 }} />
             
             <Box sx={{ p: 2, bgcolor: 'rgba(16,185,129,0.03)', borderRadius: 3, border: '1px solid rgba(16,185,129,0.1)' }}>
@@ -1364,6 +1469,18 @@ export default function AdminDashboard() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Use este campo para enviar uma mensagem personalizada ao cidadão via WhatsApp. O número cadastrado é: <strong>{selectedIssue?.whatsapp || 'Não fornecido'}</strong>
               </Typography>
+              
+              {selectedIssue?.whatsapp && (
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<OpenInNew />}
+                  onClick={() => window.open(`https://wa.me/${selectedIssue.whatsapp.replace(/\D/g, '')}`, '_blank')}
+                  sx={{ mb: 2, fontWeight: 700, textTransform: 'none', color: 'success.main' }}
+                >
+                  Abrir conversa direta no WhatsApp Web
+                </Button>
+              )}
               <TextField
                 fullWidth
                 label="Mensagem Personalizada"
@@ -1375,6 +1492,23 @@ export default function AdminDashboard() {
                 disabled={!selectedIssue?.whatsapp}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: 'white' }, mb: 2 }}
               />
+              <Box sx={{ mb: 2 }}>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  fullWidth
+                  disabled={!selectedIssue?.whatsapp}
+                  sx={{ borderRadius: 3, py: 1.5, textTransform: 'none', fontWeight: 700, bgcolor: 'white' }}
+                >
+                  {manualMessageImage ? `Foto: ${manualMessageImage.name}` : 'Anexar Foto à Mensagem'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => setManualMessageImage(e.target.files?.[0] || null)}
+                  />
+                </Button>
+              </Box>
               <Button 
                 variant="outlined" 
                 color="success" 

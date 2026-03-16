@@ -20,7 +20,7 @@ export class WhatsAppService {
     });
   }
 
-  async notifyStatusUpdate(whatsapp: string, protocol: string, status: string, comment: string | undefined, issueId: string) {
+  async notifyStatusUpdate(whatsapp: string, protocol: string, status: string, comment: string | undefined, issueId: string, imageUrl?: string) {
     const normalized = normalizeWhatsAppNumber(whatsapp);
     if (!normalized) {
       if (whatsapp) {
@@ -34,10 +34,11 @@ export class WhatsAppService {
       issueId,
       phoneNumber: normalized,
       message: MessageFormatter.formatStatusUpdate(protocol, status, comment),
+      imageUrl,
     });
   }
 
-  async sendManualMessage(whatsapp: string, protocol: string, messageText: string, issueId: string) {
+  async sendManualMessage(whatsapp: string, protocol: string, messageText: string, issueId: string, imageUrl?: string) {
     const normalized = normalizeWhatsAppNumber(whatsapp);
     if (!normalized) {
       if (whatsapp) {
@@ -51,6 +52,7 @@ export class WhatsAppService {
       issueId,
       phoneNumber: normalized,
       message: MessageFormatter.formatManualMessage(protocol, messageText),
+      imageUrl,
     });
   }
 }

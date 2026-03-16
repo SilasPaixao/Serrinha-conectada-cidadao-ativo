@@ -27,6 +27,7 @@ import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import L from 'leaflet';
 import { formatErrorMessage } from '../utils/errorUtils';
+import { ISSUE_CATEGORIES, CATEGORY_ICONS, CATEGORY_DESCRIPTIONS } from '../constants';
 
 // Fix for default marker icon in Leaflet
 let DefaultIcon = L.icon({
@@ -38,12 +39,11 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-const categories = [
-  { name: 'Lixo (coleta atrasada, entulho, acúmulo)', icon: '🗑️' },
-  { name: 'Iluminação pública (Poste apagado, Luz piscando)', icon: '💡' },
-  { name: 'Buracos em vias públicas', icon: '🛣️' },
-  { name: 'Esgoto (vazamento, esgoto a céu aberto)', icon: '💧' }
-];
+const wizardCategories = ISSUE_CATEGORIES.map(cat => ({
+  name: cat,
+  icon: CATEGORY_ICONS[cat],
+  description: CATEGORY_DESCRIPTIONS[cat]
+}));
 
 function LocationMarker({ position, setPosition }: any) {
   const map = useMap();
@@ -289,10 +289,11 @@ export default function IssueWizard() {
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Qual o tipo de problema?</Typography>
             <Grid container spacing={2}>
-              {categories.map((cat) => (
-                <Grid size={{ xs: 6 }} key={cat.name}>
+              {wizardCategories.map((cat) => (
+                <Grid size={{ xs: 6, sm: 4 }} key={cat.name}>
                   <Card 
                     sx={{ 
+                      height: '100%',
                       borderRadius: 3, 
                       border: formData.category === cat.name ? '2px solid' : '1px solid',
                       borderColor: formData.category === cat.name ? 'primary.main' : 'rgba(0,0,0,0.08)',
@@ -302,10 +303,13 @@ export default function IssueWizard() {
                   >
                     <CardActionArea 
                       onClick={() => setFormData({ ...formData, category: cat.name })}
-                      sx={{ p: 2, textAlign: 'center' }}
+                      sx={{ p: 2, textAlign: 'center', height: '100%' }}
                     >
                       <Typography variant="h4" sx={{ mb: 1 }}>{cat.icon}</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.2 }}>{cat.name}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.2, mb: 0.5 }}>{cat.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem', lineHeight: 1.1 }}>
+                        {cat.description}
+                      </Typography>
                     </CardActionArea>
                   </Card>
                 </Grid>

@@ -6,15 +6,29 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const s3Client = new S3Client({
-  endpoint: process.env.S3_ENDPOINT,
-  region: process.env.S3_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY || "",
-    secretAccessKey: process.env.S3_SECRET_KEY || "",
-  },
-  forcePathStyle: true,
-});
+let s3ClientInstance: S3Client | null = null;
+
+function getS3Client(): S3Client {
+  if (!s3ClientInstance) {
+    const accessKeyId = process.env.S3_ACCESS_KEY;
+    const secretAccessKey = process.env.S3_SECRET_KEY;
+
+    if (!accessKeyId || !secretAccessKey) {
+      throw new Error("S3 credentials (S3_ACCESS_KEY and S3_SECRET_KEY) are not configured. Please set them in the environment variables.");
+    }
+
+    s3ClientInstance = new S3Client({
+      endpoint: process.env.S3_ENDPOINT,
+      region: process.env.S3_REGION || "us-east-1",
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+      forcePathStyle: true,
+    });
+  }
+  return s3ClientInstance;
+}
 
 export class S3Service {
   private defaultBucket = process.env.S3_BUCKET || "serrinha-uploads";
@@ -34,7 +48,7 @@ export class S3Service {
       ContentType: file.mimetype,
     });
 
-    await s3Client.send(command);
+    await getS3Client().send(command);
     return key;
   }
 
@@ -51,7 +65,7 @@ export class S3Service {
       });
 
       // We'll default to signed URL for security/reliability.
-      return await getSignedUrl(s3Client, command, { expiresIn: 3600 * 24 }); // 24 hours
+      return await getSignedUrl(getS3Client(), command, { expiresIn: 3600 * 24 }); // 24 hours
     } catch (error) {
       console.error("Error generating signed URL:", error);
       if (this.publicBaseUrl) {
@@ -67,7 +81,7 @@ export class S3Service {
         Bucket: bucket || this.defaultBucket,
         Key: key,
       });
-      await s3Client.send(command);
+      await getS3Client().send(command);
     } catch (error) {
       console.error("Error deleting file from S3:", error);
     }

@@ -5,6 +5,13 @@ export interface SendTextParams {
   text: string;
 }
 
+export interface SendMediaParams {
+  number: string;
+  mediaUrl: string;
+  caption?: string;
+  mediaType?: 'image' | 'video' | 'document' | 'audio';
+}
+
 export class EvolutionWhatsAppProvider {
   private readonly apiUrl: string;
   private readonly apiKey: string;
@@ -21,19 +28,12 @@ export class EvolutionWhatsAppProvider {
       throw new Error('Evolution API configuration is missing (apiUrl, apiKey or instance)');
     }
 
-    // Ensure number is in correct format for Evolution API
-    // Usually it's just digits, but some versions prefer the full JID
     let formattedNumber = number.replace(/\D/g, '');
     
-    // If it doesn't have the @s.whatsapp.net suffix, Evolution API usually adds it,
-    // but we can be explicit if needed. However, the 'number' field in the API
-    // usually expects just the digits or the full JID.
-    // Let's stick to digits first as it's more common for the 'number' field.
-
     const baseUrl = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
     const url = `${baseUrl}/message/sendText/${this.instance}`;
 
-    console.log(`📤 Sending WhatsApp to ${formattedNumber} via ${url}`);
+    console.log(`📤 Sending WhatsApp Text to ${formattedNumber} via ${url}`);
 
     try {
       const response = await axios.post(
@@ -42,18 +42,69 @@ export class EvolutionWhatsAppProvider {
           number: formattedNumber,
           text,
           linkPreview: false,
+          delay: 0,
         },
         {
           headers: {
             apikey: this.apiKey,
             'Content-Type': 'application/json',
           },
-          timeout: 15000, // 15 seconds timeout
+          timeout: 15000,
         }
       );
-      console.log(`✅ WhatsApp sent successfully to ${formattedNumber}:`, response.data);
+      console.log(`✅ WhatsApp Text sent successfully to ${formattedNumber}:`, response.data);
     } catch (error: any) {
-      console.error(`❌ Error sending WhatsApp to ${formattedNumber}:`, error.response?.data || error.message);
+      const errorData = error.response?.data;
+      console.error(`❌ Error sending WhatsApp Text to ${formattedNumber}:`, JSON.stringify(errorData || error.message, null, 2));
+      throw error;
+    }
+  }
+
+  async sendMedia({ number, mediaUrl, caption, mediaType = 'image' }: SendMediaParams): Promise<void> {
+    if (!this.apiUrl || !this.apiKey || !this.instance) {
+      throw new Error('Evolution API configuration is missing (apiUrl, apiKey or instance)');
+    }
+
+    let formattedNumber = number.replace(/\D/g, '');
+    
+    const baseUrl = this.apiUrl.endsWith('/') ? this.apiUrl.slice(0, -1) : this.apiUrl;
+    const url = `${baseUrl}/message/sendMedia/${this.instance}`;
+
+    const fileName = mediaUrl.split('/').pop()?.split('?')[0] || 'image.jpg';
+    
+    const payload: any = {
+      number: formattedNumber,
+      media: mediaUrl,
+      caption: caption || '',
+      mediaType: mediaType,
+      mediatype: mediaType,
+      fileName: fileName,
+      delay: 0,
+    };
+
+    if (mediaType === 'image') {
+      payload.mimetype = 'image/jpeg';
+    }
+
+    console.log(`📤 Sending WhatsApp Media (${mediaType}) to ${formattedNumber} via ${url}`);
+    console.log('📦 Payload (redacted media):', { ...payload, media: mediaUrl.substring(0, 50) + '...' });
+
+    try {
+      const response = await axios.post(
+        url,
+        payload,
+        {
+          headers: {
+            apikey: this.apiKey,
+            'Content-Type': 'application/json',
+          },
+          timeout: 60000,
+        }
+      );
+      console.log(`✅ WhatsApp Media sent successfully to ${formattedNumber}:`, response.data);
+    } catch (error: any) {
+      const errorData = error.response?.data;
+      console.error(`❌ Error sending WhatsApp Media to ${formattedNumber}:`, JSON.stringify(errorData || error.message, null, 2));
       throw error;
     }
   }

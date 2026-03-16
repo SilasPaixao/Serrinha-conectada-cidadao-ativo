@@ -59,10 +59,19 @@ async function processNextMessage() {
 
     try {
       // Envia via Evolution API
-      await evolutionProvider.sendText({
-        number: nextMessage.phoneNumber,
-        text: nextMessage.message,
-      });
+      if (nextMessage.imageUrl) {
+        await evolutionProvider.sendMedia({
+          number: nextMessage.phoneNumber,
+          mediaUrl: nextMessage.imageUrl,
+          caption: nextMessage.message,
+          mediaType: 'image'
+        });
+      } else {
+        await evolutionProvider.sendText({
+          number: nextMessage.phoneNumber,
+          text: nextMessage.message,
+        });
+      }
 
       // Sucesso
       await prisma.whatsAppLog.update({
@@ -75,14 +84,15 @@ async function processNextMessage() {
       });
       console.log(`✅ WhatsApp enviado com sucesso para ${nextMessage.phoneNumber}`);
     } catch (error: any) {
-      console.error(`❌ Erro ao enviar WhatsApp para ${nextMessage.phoneNumber}:`, error.message);
+      const errorMessage = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+      console.error(`❌ Erro ao enviar WhatsApp para ${nextMessage.phoneNumber}:`, errorMessage);
       
       // Falha
       await prisma.whatsAppLog.update({
         where: { id: nextMessage.id },
         data: {
           status: 'failed',
-          lastError: error.message || 'Unknown error',
+          lastError: errorMessage || 'Unknown error',
           attempts: nextMessage.attempts + 1,
         },
       });

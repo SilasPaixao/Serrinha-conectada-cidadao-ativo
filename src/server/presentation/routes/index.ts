@@ -189,22 +189,22 @@ export function setupRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/admin/issues/:id/status", authenticate, authorize(["GOVERNMENT", "ADMIN"]), async (req: AuthRequest, res) => {
+  app.post("/api/admin/issues/:id/status", authenticate, authorize(["GOVERNMENT", "ADMIN"]), upload.single("image"), async (req: AuthRequest, res) => {
     try {
       const { status, comment } = req.body;
-      const issue = await issueService.updateStatus(req.params.id, status, comment, req.user!.id);
+      const issue = await issueService.updateStatus(req.params.id, status, comment, req.user!.id, req.file);
       res.json(issue);
     } catch (error: any) {
       handleError(res, error);
     }
   });
 
-  app.post("/api/admin/issues/:id/send-notification", authenticate, authorize(["GOVERNMENT", "ADMIN"]), async (req: AuthRequest, res) => {
+  app.post("/api/admin/issues/:id/send-notification", authenticate, authorize(["GOVERNMENT", "ADMIN"]), upload.single("image"), async (req: AuthRequest, res) => {
     try {
       const { message } = req.body;
       if (!message) return res.status(400).json({ error: "Mensagem é obrigatória" });
       
-      const result = await issueService.sendManualNotification(req.params.id, message);
+      const result = await issueService.sendManualNotification(req.params.id, message, req.file);
       res.json(result);
     } catch (error: any) {
       handleError(res, error, 500);
@@ -277,6 +277,23 @@ export function setupRoutes(app: Express) {
       };
       
       res.json({ config, stats: counts });
+    } catch (error: any) {
+      handleError(res, error, 500);
+    }
+  });
+
+  app.post("/api/admin/whatsapp/test", authenticate, authorize(["ADMIN"]), async (req, res) => {
+    try {
+      const { number, message } = req.body;
+      if (!number || !message) throw new Error("Número e mensagem são obrigatórios");
+      
+      const { WhatsAppService } = await import("../../application/services/WhatsAppService.js");
+      const whatsappService = new WhatsAppService();
+      
+      // We don't have an issueId for a pure test
+      await whatsappService.sendManualMessage(number, "TEST-000", message, "test-issue-id");
+      
+      res.json({ success: true });
     } catch (error: any) {
       handleError(res, error, 500);
     }
